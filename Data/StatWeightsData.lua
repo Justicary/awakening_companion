@@ -463,47 +463,73 @@ function ns.OpenInAtlasLoot(itemName, itemID)
 end
 
 -- -------------------------------------------------------------------------
--- INTEGRACIÓN CON TOOLTIPS (GameTooltip Hook)
+-- INTEGRACIÓN CON TOOLTIPS (Soporte Universal para WoW Forever & Classic)
 -- -------------------------------------------------------------------------
-if GameTooltip and GameTooltip.HookScript then
-    GameTooltip:HookScript("OnTooltipSetItem", function(selfTooltip)
-        local _, itemLink = selfTooltip:GetItem()
-        if not itemLink then return end
+local function ProcessTooltipItem(selfTooltip, itemLinkOrID)
+    if not selfTooltip then return end
+    if not itemLinkOrID and selfTooltip.GetItem then
+        local _, link = selfTooltip:GetItem()
+        itemLinkOrID = link
+    end
+    if not itemLinkOrID then return end
 
-        local playerClass = select(2, UnitClass("player")) or "WARRIOR"
-        local specKey = ns.GetClassDefaultEnchantSpec and ns.GetClassDefaultEnchantSpec(playerClass)
-        local weights, specDisplayName = ns.GetStatWeights(playerClass, specKey)
+    local playerClass = select(2, UnitClass("player")) or "WARRIOR"
+    local specKey = ns.GetClassDefaultEnchantSpec and ns.GetClassDefaultEnchantSpec(playerClass)
+    local weights, specDisplayName = ns.GetStatWeights(playerClass, specKey)
 
-        -- Extraer ranura equipable
-        local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-        if not itemEquipLoc or itemEquipLoc == "" or itemEquipLoc == "INVTYPE_NON_EQUIP" then
-            return
+    -- Extraer ranura equipable
+    local itemEquipLoc
+    if GetItemInfo then
+        local _, _, _, _, _, _, _, _, eqLoc = GetItemInfo(itemLinkOrID)
+        itemEquipLoc = eqLoc
+    end
+    if not itemEquipLoc or itemEquipLoc == "" or itemEquipLoc == "INVTYPE_NON_EQUIP" then
+        return
+    end
+
+    local score = ns.GetItemScore(itemLinkOrID, playerClass, specKey)
+    if score and score > 0 then
+        selfTooltip:AddLine(" ")
+        selfTooltip:AddDoubleLine(
+            "|cFF00FFCCAwakening Score:|r",
+            string.format("|cFFFFD100%.1f pts|r |cFF888888(%s)|r", score, specDisplayName or "General")
+        )
+
+        local slotName = EQUIPLOC_TO_SLOT[itemEquipLoc]
+        if slotName and ns.GetSlotUpgrade then
+            local pctUpgrade, _, _, eqScore = ns.GetSlotUpgrade(slotName, itemLinkOrID, playerClass, specKey)
+            if pctUpgrade and pctUpgrade > 0 then
+                selfTooltip:AddDoubleLine(
+                    "|cFF00FF00▲ Mejora estimada:|r",
+                    string.format("|cFF00FF00+%.1f%%|r |cFF888888(vs actual %.1f)|r", pctUpgrade, eqScore or 0)
+                )
+            end
         end
 
-        local score = ns.GetItemScore(itemLink, playerClass, specKey)
-        if score > 0 then
-            selfTooltip:AddLine(" ")
-            selfTooltip:AddDoubleLine(
-                "|cFF00FFCCAwakening Score:|r",
-                string.format("|cFFFFD100%.1f pts|r |cFF888888(%s)|r", score, specDisplayName or "General")
-            )
-
-            local slotName = EQUIPLOC_TO_SLOT[itemEquipLoc]
-            if slotName then
-                local pctUpgrade, _, _, eqScore = ns.GetSlotUpgrade(slotName, itemLink, playerClass, specKey)
-                if pctUpgrade and pctUpgrade > 0 then
-                    selfTooltip:AddDoubleLine(
-                        "|cFF00FF00▲ Mejora estimada:|r",
-                        string.format("|cFF00FF00+%.1f%%|r |cFF888888(vs actual %.1f)|r", pctUpgrade, eqScore or 0)
-                    )
-                end
-            end
-
-            if _G.AtlasLoot then
-                selfTooltip:AddLine("|cFF00FFCCAlt+Clic:|r Buscar en AtlasLoot Classic", 0.5, 0.8, 1)
-            end
-
-            selfTooltip:Show()
+        if _G.AtlasLoot then
+            selfTooltip:AddLine("|cFF00FFCCAlt+Clic:|r Buscar en AtlasLoot Classic", 0.5, 0.8, 1)
         end
-    end)
+
+        selfTooltip:Show()
+    end
 end
+
+pcall(function()
+    -- 1. WoW Forever / Classic 1.15+ (TooltipDataProcessor oficial de Blizzard)
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tt, data)
+            if tt and data then
+                local item = data.hyperlink or data.id
+                ProcessTooltipItem(tt, item)
+            end
+        end)
+        return
+    end
+
+    -- 2. WoW Classic Legacy (HookScript seguro comprobando HasScript primero)
+    if GameTooltip and GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetItem") and GameTooltip.HookScript then
+        GameTooltip:HookScript("OnTooltipSetItem", function(selfTooltip)
+            ProcessTooltipItem(selfTooltip, nil)
+        end)
+    end
+end)
