@@ -11,8 +11,8 @@ Core/Init.lua
 Core/Comms.lua
 
 # Data
-Data/BiSData.lua
 Data/SecretsData.lua
+Data/BiSData.lua
 Data/FarmingData.lua
 Data/CampingData.lua
 

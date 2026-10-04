@@ -1,0 +1,27 @@
+{
+  "name": "bis-scraper",
+  "version": "1.0.0",
+  "description": "Wowhead BiS scraper and Lua exporter for Awakening Companion",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate:bis": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "keywords": [
+    "wow",
+    "bis",
+    "scraper",
+    "lua"
+  ],
+  "author": "justicary",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

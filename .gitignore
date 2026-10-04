@@ -8,3 +8,12 @@ __pycache__/
 Thumbs.db
 *.swp
 *~
+
+# Node.js / Tools
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
