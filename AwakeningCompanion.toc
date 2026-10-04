@@ -1,0 +1,24 @@
+## Interface: 16001
+## Title: |cFF00FFCCAwakening|r: Companion
+## Notes: Guías visuales de secretos, rutas HUD y utilidades de hermandad para WoW Classic Forever Beta.
+## Author: justicary
+## Version: 1.0.0
+## SavedVariables: AwakeningDB
+## OptionalDeps: TomTom, AtlasLootClassic, AtlasBIStooltips
+
+# Core
+Core/Init.lua
+Core/Comms.lua
+
+# Data
+Data/BiSData.lua
+Data/SecretsData.lua
+Data/FarmingData.lua
+Data/CampingData.lua
+
+# Modules
+Modules/GuideHUD.lua
+Modules/RaidPrep.lua
+Modules/GuildRoster.lua
+Modules/MainUI.lua
+Modules/MinimapButton.lua
