@@ -1,4 +1,5 @@
 import dns from 'dns';
+import vm from 'vm';
 import axios, { AxiosInstance } from 'axios';
 import * as cheerio from 'cheerio';
 import { BiSItem, SlotKey } from './types.js';
@@ -240,7 +241,6 @@ export class WowheadScraper {
     const callSnippet = html.substring(callPos, endCall + 2);
     let extracted: string | null = null;
 
-    const vm = require('vm');
     const sandbox = {
       WH: {
         markup: {

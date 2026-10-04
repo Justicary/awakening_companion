@@ -2,6 +2,7 @@
   "name": "bis-scraper",
   "version": "1.0.0",
   "description": "Wowhead BiS scraper and Lua exporter for Awakening Companion",
+  "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "generate:bis": "tsx src/index.ts",

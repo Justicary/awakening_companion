@@ -397,6 +397,9 @@ function MainUI:Init()
         rBtn:SetScript("OnClick", function(selfBtn)
             if selfBtn.itemLink and IsModifiedClick("CHATLINK") then
                 ChatEdit_InsertLink(selfBtn.itemLink)
+            elseif ns.OpenInAtlasLoot and selfBtn.itemID and selfBtn.itemID > 0 then
+                local name = selfBtn.itemLink or selfBtn.title or (selfBtn.text and selfBtn.text:GetText())
+                ns.OpenInAtlasLoot(name, selfBtn.itemID)
             end
         end)
 
@@ -845,11 +848,32 @@ function MainUI:BuildBiSList(parent)
             if meta then
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddDoubleLine("|cFFFFD100Ranura:|r " .. slotInfo.name, "|cFFFFD100ID:|r |cFFFFFFFF" .. selfRow.itemID .. "|r")
-                GameTooltip:AddDoubleLine("|cFFFFD100Fuente / Jefe:|r " .. meta.source, "|cFFFFD100Zona:|r " .. meta.zone)
-                GameTooltip:AddDoubleLine("|cFFFFD100Tipo:|r " .. meta.type, "|cFFFFD100Probabilidad:|r " .. meta.drop)
+                if meta.type == "Purchase" then
+                    GameTooltip:AddDoubleLine("|cFFFFD100Comerciante:|r " .. meta.source, "|cFFFFD100Zona:|r " .. meta.zone)
+                    GameTooltip:AddDoubleLine("|cFFFFD100Precio:|r " .. meta.drop, "|cFFFFD100Tipo:|r Venta")
+                else
+                    GameTooltip:AddDoubleLine("|cFFFFD100Fuente / Jefe:|r " .. meta.source, "|cFFFFD100Zona:|r " .. meta.zone)
+                    GameTooltip:AddDoubleLine("|cFFFFD100Tipo:|r " .. meta.type, "|cFFFFD100Probabilidad:|r " .. meta.drop)
+                end
                 local eq, inB = ns.GetPlayerItemStatus(selfRow.itemID)
                 local stStr = eq and "|cFF00FF00Equipado actualmente|r" or (inB and "|cFF00CCFFEn tus bolsas|r" or "|cFFFF5555Pendiente de obtener|r")
                 GameTooltip:AddDoubleLine("|cFFFFD100Estado de posesión:|r", stStr)
+
+                if ns.GetSlotUpgrade then
+                    local pctUpgrade, _, candScore, eqScore = ns.GetSlotUpgrade(slotInfo.key, selfRow.itemID, selectedBiSSpec)
+                    if pctUpgrade and pctUpgrade > 0 then
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddDoubleLine("|cFF00FF00▲ Mejora (StatWeights):|r", string.format("|cFF00FF00+%.1f%%|r", pctUpgrade))
+                        GameTooltip:AddDoubleLine("|cFF888888Puntaje EP Sixty/Pawn:|r", string.format("%.1f vs %.1f equipado", candScore or 0, eqScore or 0))
+                    elseif eq then
+                        GameTooltip:AddDoubleLine("|cFF00FF00Puntaje BiS (Equipado):|r", string.format("%.1f EP", candScore or 0))
+                    end
+                end
+
+                if _G.AtlasLoot then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FFCCAlt+Clic:|r Buscar este objeto en AtlasLoot Classic", 0.6, 0.8, 1)
+                end
             end
             GameTooltip:Show()
         end)
@@ -858,7 +882,14 @@ function MainUI:BuildBiSList(parent)
             GameTooltip:Hide()
         end)
 
-        row:SetScript("OnClick", function()
+        row:SetScript("OnClick", function(selfRow)
+            if IsAltKeyDown() and ns.OpenInAtlasLoot and selfRow.itemID and selfRow.itemID > 0 then
+                local meta = ns.GetBiSItemMetadata(selfRow.itemID)
+                local name = selfRow.itemLink or (meta and meta.name)
+                if ns.OpenInAtlasLoot(name, selfRow.itemID) then
+                    return
+                end
+            end
             MainUI:SelectBiSSlot(slotInfo.key)
         end)
 
@@ -1042,6 +1073,8 @@ function MainUI:UpdateBiSView()
                 bracketShort = "Raid Nivel 60"
             elseif b.key == "pre-raid" then
                 bracketShort = "Nivel 53-60"
+            elseif b.key == "1-14" then
+                bracketShort = "Nivel 1-14"
             else
                 bracketShort = b.name:gsub("%s*%(.-%)", "")
             end
@@ -1095,13 +1128,20 @@ function MainUI:UpdateBiSView()
                 local meta = ns.GetBiSItemMetadata(itemID)
                 local isEquipped, inBags = ns.GetPlayerItemStatus(itemID)
 
-                -- Texto y color de estado (Solo estado, el jefe se muestra en el tooltip y panel inferior)
+                -- Texto y color de estado (Equipado, En Bolsas, o % Mejora sobre equipo actual)
                 if isEquipped then
                     rFrame.statusLabel:SetText("|cFF00FF00Equipado|r")
                 elseif inBags then
                     rFrame.statusLabel:SetText("|cFF00CCFFEn Bolsas|r")
                 else
-                    rFrame.statusLabel:SetText("|cFFFF5555Falta|r")
+                    local statTxt = "|cFFFF5555Falta|r"
+                    if ns.GetSlotUpgrade then
+                        local pctUpgrade = ns.GetSlotUpgrade(slotInfo.key, itemID, selectedBiSSpec)
+                        if pctUpgrade and pctUpgrade > 0 then
+                            statTxt = string.format("|cFF00FF00+%.0f%%|r", pctUpgrade)
+                        end
+                    end
+                    rFrame.statusLabel:SetText(statTxt)
                 end
 
                 -- Consulta y carga segura de información del objeto
@@ -1265,14 +1305,44 @@ function MainUI:SelectBiSSlot(slotKey)
         }
         self:ShowDetailRewards(bisReward, "|cFFFFD100Objeto BiS:|r")
 
-        mainFrame.detailText:SetText(string.format(
-            "Jefe / Fuente: |cFFFFD100%s|r (%s)  ·  Zona: |cFFFFFFFF%s|r\nProbabilidad de caída: |cFFFFD100%s|r\nEstado: %s",
-            meta and meta.source or "Mundo Clásico",
-            meta and meta.type or "Kill",
-            meta and meta.zone or "Azeroth",
-            meta and meta.drop or "Variable",
-            statusStr
-        ))
+        -- Calcular Mejora de StatWeights y formato según tipo de fuente
+        local upgradeLine = ""
+        if ns.GetSlotUpgrade then
+            local pctUpgrade, _, newScore, curScore = ns.GetSlotUpgrade(rFrame.slotKey, itemID, selectedBiSSpec)
+            if pctUpgrade and pctUpgrade > 0 then
+                upgradeLine = string.format("\n|cFF00FF00▲ Mejora estimada: +%.1f%%|r (Puntaje EP: %.1f vs %.1f equipado)", pctUpgrade, newScore, curScore)
+            elseif eq then
+                upgradeLine = string.format("\n|cFF00FF00✔ Objeto BiS equipado actualmente.|r (Puntaje EP: %.1f)", newScore or 0)
+            end
+        end
+
+        local sourceDesc
+        if meta and meta.type == "Purchase" then
+            sourceDesc = string.format(
+                "Tipo: |cFFFFFF00Compra de Comerciante|r  ·  Precio: |cFFFFD100%s|r\nVendedor: |cFFFFFFFF%s|r  ·  Zona: |cFF00FFCC%s|r\nEstado: %s%s\n|cFF88DDFFConsejo (Nivel 1-14):|r El equipamiento de comerciantes de inicio es la forma más rápida y garantizada de optimizar tus estadísticas antes de las primeras mazmorras.",
+                meta.drop or "Monedas",
+                meta.source or "Vendedor local",
+                meta.zone or "Pueblo Inicial",
+                statusStr,
+                upgradeLine
+            )
+        else
+            sourceDesc = string.format(
+                "Jefe / Fuente: |cFFFFD100%s|r (%s)  ·  Zona: |cFFFFFFFF%s|r\nProbabilidad de caída: |cFFFFD100%s|r\nEstado: %s%s",
+                meta and meta.source or "Mundo Clásico",
+                meta and meta.type or "Kill",
+                meta and meta.zone or "Azeroth",
+                meta and meta.drop or "Variable",
+                statusStr,
+                upgradeLine
+            )
+        end
+
+        if _G.AtlasLoot then
+            sourceDesc = sourceDesc .. "\n|cFF00FFCC[AtlasLoot detectado: Clic en el icono o Alt+Clic en la lista para ver en AtlasLoot]|r"
+        end
+
+        mainFrame.detailText:SetText(sourceDesc)
     end
 end
 
@@ -1284,6 +1354,7 @@ function MainUI:CycleBiSBracket()
         local bracketsList = catData and catData.brackets
         if not bracketsList or #bracketsList == 0 then
             bracketsList = {
+                { key = "1-14",     short = "Nv. 1-14 (Inicial)" },
                 { key = "15-25",    short = "Nv. 15-25 (Inicial)" },
                 { key = "26-40",    short = "Nv. 26-40 (Medio)" },
                 { key = "41-52",    short = "Nv. 41-52 (Avanzado)" },
