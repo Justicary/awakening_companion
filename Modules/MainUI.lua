@@ -830,13 +830,30 @@ function MainUI:BuildBiSList(parent)
                     GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
                     GameTooltip:ClearLines()
                     GameTooltip:AddLine("|cFFFFD100" .. (selfRow.slotName or slotInfo.name) .. "|r", 1, 0.82, 0)
-                    GameTooltip:AddLine("|cFF888888En WoW Classic original no existen encantamientos para esta ranura. Los encantamientos para anillos y ranuras menores se introdujeron en expansiones posteriores (TBC/WotLK).|r", 1, 1, 1, true)
+                    if selectedBiSBracket == "1-14" then
+                        GameTooltip:AddLine("|cFFFF5555No se recomienda encantar en Nivel 1-14|r", 1, 0.3, 0.3)
+                        GameTooltip:AddLine("|cFFCCCCCCDebido a la baja calidad del equipo y a su rápida rotación en estos niveles tempranos, no se recomienda invertir oro en encantamientos. Ahorra para habilidades de clase e inicia los encantamientos a partir de Nivel 15-25.|r", 1, 1, 1, true)
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("|cFF00FFCCClick:|r Ver información en el panel inferior.", 0.6, 0.6, 0.6)
+                    else
+                        GameTooltip:AddLine("|cFF888888En WoW Classic original no existen encantamientos para esta ranura. Los encantamientos para anillos y ranuras menores se introdujeron en expansiones posteriores (TBC/WotLK).|r", 1, 1, 1, true)
+                    end
                     GameTooltip:Show()
                 end
                 return
             end
 
-            if not selfRow.itemID or selfRow.itemID == 0 then return end
+            if not selfRow.itemID or selfRow.itemID == 0 then
+                if selectedBiSBracket == "1-14" then
+                    GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
+                    GameTooltip:ClearLines()
+                    GameTooltip:AddLine("|cFFFFD100" .. (selfRow.slotName or slotInfo.name) .. "|r", 1, 0.82, 0)
+                    GameTooltip:AddLine("|cFF888888Ranura no disponible en Nivel 1-14.|r", 1, 0.82, 0)
+                    GameTooltip:AddLine("|cFFCCCCCCEn WoW Classic no hay piezas para esta ranura en niveles 1-14. Se desbloquean a partir del nivel 15-25.|r", 1, 1, 1, true)
+                    GameTooltip:Show()
+                end
+                return
+            end
             GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
             if selfRow.itemLink then
                 GameTooltip:SetHyperlink(selfRow.itemLink)
@@ -985,13 +1002,21 @@ function MainUI:UpdateBiSView()
         end
 
         if mainFrame and mainFrame.heroTitle then
-            mainFrame.heroTitle:SetText(string.format(
-                "|cFFFFD100Encantamientos %s (Nv. %d)|r · |cFF00FFCC%s (%s)|r",
-                localizedClass,
-                playerLevel,
-                specDisplayName,
-                bracketShortName
-            ))
+            if selectedBiSBracket == "1-14" then
+                mainFrame.heroTitle:SetText(string.format(
+                    "|cFFFFD100Encantamientos %s (Nv. %d)|r · |cFF888888Sin encantamientos (Nv. 1-14)|r",
+                    localizedClass,
+                    playerLevel
+                ))
+            else
+                mainFrame.heroTitle:SetText(string.format(
+                    "|cFFFFD100Encantamientos %s (Nv. %d)|r · |cFF00FFCC%s (%s)|r",
+                    localizedClass,
+                    playerLevel,
+                    specDisplayName,
+                    bracketShortName
+                ))
+            end
         end
 
         for _, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
@@ -1006,7 +1031,12 @@ function MainUI:UpdateBiSView()
                 rFrame.slotKey = slotKey
                 rFrame.itemLink = nil
 
-                if enchantID and enchantID > 0 then
+                if selectedBiSBracket == "1-14" then
+                    rFrame.enchantMeta = nil
+                    rFrame.icon:SetTexture("Interface\\PaperDoll\\UI-Backpack-EmptySlot")
+                    rFrame.itemLabel:SetText("|cFF777777(No recomendado en Nv. 1-14)|r")
+                    rFrame.statusLabel:SetText("|cFF555555N/A|r")
+                elseif enchantID and enchantID > 0 then
                     local meta = ns.GetEnchantMetadata(enchantID)
                     rFrame.enchantMeta = meta
                     rFrame.icon:SetTexture(meta.icon or "Interface\\Icons\\spell_holy_magicalsentry")
@@ -1205,6 +1235,20 @@ function MainUI:SelectBiSSlot(slotKey)
     -- DETALLES PARA MODO ENCANTAMIENTOS
     -- ---------------------------------------------------------------------
     if selectedBiSMode == "enchants" then
+        if selectedBiSBracket == "1-14" then
+            if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
+                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin Encantamientos Recomendados (Nv. 1-14)|r", rFrame and rFrame.slotName or slotKey))
+                self:ShowDetailRewards(nil)
+                mainFrame.detailText:SetText(
+                    "|cFFFFFF00En el rango de Nivel 1 a 14 no se recomienda encantar el equipo.|r\n\n" ..
+                    "• |cFFFFFFFFRápida rotación de equipo:|r Las piezas obtenidas en estos niveles iniciales se reemplazan con gran velocidad mediante misiones tempranas y botín de mundo.\n" ..
+                    "• |cFFFFFFFFPrioridad de economía:|r Se aconseja guardar el dinero para adquirir los nuevos rangos de hechizos y habilidades con tus instructores de clase.\n" ..
+                    "• |cFF00FFCCRecomendación:|r Empieza a encantar tu equipo a partir del tramo |cFFFFD100Nivel 15-25|r (con los primeros refuerzos de armadura y las mazmorras iniciales como Minas de la Muerte o Cuevas de los Lamentos)."
+                )
+            end
+            return
+        end
+
         local enchantID = rFrame and rFrame.enchantID
         if not enchantID or enchantID == 0 then
             if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
@@ -1260,9 +1304,19 @@ function MainUI:SelectBiSSlot(slotKey)
     -- ---------------------------------------------------------------------
     if not rFrame or not rFrame.itemID or rFrame.itemID == 0 then
         if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
-            mainFrame.detailTitle:SetText("|cFFFFD100Ranura sin objeto asignado|r")
-            self:ShowDetailRewards(nil)
-            mainFrame.detailText:SetText("No hay objeto Best-in-Slot definido para esta ranura en el tier actual.")
+            if selectedBiSBracket == "1-14" then
+                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin objeto en Nivel 1-14|r", rFrame and rFrame.slotName or slotKey))
+                self:ShowDetailRewards(nil)
+                mainFrame.detailText:SetText(
+                    "|cFFFFFF00Ranura no disponible en Nivel 1-14.|r\n\n" ..
+                    "En WoW Classic original no existen piezas de equipo para esta ranura (Casco, Cuello, Hombreras, Anillos, Abalorios) que se puedan conseguir o equipar entre los niveles 1 y 14.\n\n" ..
+                    "|cFF88DDFFConsejo:|r Estas ranuras comenzarán a llenarse a partir del tramo |cFFFFD100Nivel 15-25|r mediante misiones de clase y las primeras mazmorras (Minas de la Muerte, Cuevas de los Lamentos, Castillo de Colmillo Oscuro)."
+                )
+            else
+                mainFrame.detailTitle:SetText("|cFFFFD100Ranura sin objeto asignado|r")
+                self:ShowDetailRewards(nil)
+                mainFrame.detailText:SetText("No hay objeto Best-in-Slot definido para esta ranura en el tier actual.")
+            end
         end
         return
     end
