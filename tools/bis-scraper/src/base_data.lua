@@ -101,7 +101,9 @@ ns.Data.BiSItems = {
     [4724] = { name = "Humbert's Helm", source = "Dun Garok Rifleman", type = "Kill", zone = "Hillsbrad Foothills", drop = "3.8%" },
     [5187] = { name = "Rhahk'Zor's Hammer", source = "Rhahk'Zor", type = "Kill", zone = "The Deadmines", drop = "76.3%" },
     [5191] = { name = "Cruel Barb", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "15.8%" },
-    [5192] = { name = "Silver-plated Battleboots", source = "Sneed", type = "Kill", zone = "The Deadmines", drop = "38.3%" },
+    [5192] = { name = "Thief's Blade", source = "Mr. Smite", type = "Kill", zone = "The Deadmines", drop = "38.3%" },
+    [6459] = { name = "Savage Trodders", source = "Lord Serpentis", type = "Kill", zone = "Wailing Caverns", drop = "28.6%" },
+    [10332] = { name = "Scarlet Boots", source = "Scarlet Monastery", type = "Kill", zone = "Scarlet Monastery", drop = "Común" },
     [5193] = { name = "Cape of the Brotherhood", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "23.0%" },
     [5194] = { name = "Taskmaster Axe", source = "Sneed", type = "Kill", zone = "The Deadmines", drop = "27.6%" },
     [5195] = { name = "Gold-flecked Gloves", source = "Sneed", type = "Kill", zone = "The Deadmines", drop = "67.5%" },
@@ -170,11 +172,19 @@ ns.Data.BiSItems = {
     [9640] = { name = "Vice Grips", source = "Antu'sul", type = "Kill", zone = "Zul'Farrak", drop = "30.0%" },
     [9641] = { name = "Lifeblood Amulet", source = "Antu'sul", type = "Kill", zone = "Zul'Farrak", drop = "33.0%" },
     [10330] = { name = "Scarlet Leggings", source = "Scarlet Commander Mograine", type = "Kill", zone = "Scarlet Monastery", drop = "14.0%" },
+    -- Conjunto: Armadura Defias ennegrecida (Blackened Defias Armor - Minas de la Muerte)
     [10399] = { name = "Blackened Defias Armor", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "15.6%" },
+    [10400] = { name = "Blackened Defias Leggings", source = "Captain Greenskin", type = "Kill", zone = "The Deadmines", drop = "20.0%" },
+    [10401] = { name = "Blackened Defias Gloves", source = "Rhahk'Zor / Despojo", type = "Kill", zone = "The Deadmines", drop = "Raro" },
+    [10402] = { name = "Blackened Defias Boots", source = "Despojo de Mazmorra", type = "Kill", zone = "The Deadmines", drop = "Raro" },
+    [10403] = { name = "Blackened Defias Belt", source = "Despojo de Mazmorra", type = "Kill", zone = "The Deadmines", drop = "Raro" },
+
+    -- Conjunto: Abrazo de la víbora (Embrace of the Viper - Cuevas de los Lamentos)
+    [6473] = { name = "Armor of the Fang", source = "Lord Pythas", type = "Kill", zone = "Wailing Caverns", drop = "55.3%" },
     [10410] = { name = "Leggings of the Fang", source = "Lord Cobrahn", type = "Kill", zone = "Wailing Caverns", drop = "18.0%" },
     [10411] = { name = "Footpads of the Fang", source = "Lord Serpentis", type = "Kill", zone = "Wailing Caverns", drop = "21.5%" },
-    [10412] = { name = "Belt of the Fang", source = "Lord Kresh", type = "Kill", zone = "Wailing Caverns", drop = "20.0%" },
-    [10413] = { name = "Gloves of the Fang", source = "Mundo / Despojo", type = "Kill", zone = "Wailing Caverns", drop = "Raro" },
+    [10412] = { name = "Belt of the Fang", source = "Lady Anacondra", type = "Kill", zone = "Wailing Caverns", drop = "20.0%" },
+    [10413] = { name = "Gloves of the Fang", source = "Druidas del Colmillo", type = "Kill", zone = "Wailing Caverns", drop = "Raro" },
     [10761] = { name = "Coldrage Dagger", source = "Amnennar the Coldbringer", type = "Kill", zone = "Razorfen Downs", drop = "18.6%" },
     [10762] = { name = "Robes of the Lich", source = "Amnennar the Coldbringer", type = "Kill", zone = "Razorfen Downs", drop = "39.2%" },
     [10763] = { name = "Icemetal Barbute", source = "Amnennar the Coldbringer", type = "Kill", zone = "Razorfen Downs", drop = "36.9%" },
@@ -227,7 +237,9 @@ ns.Data.BiSItems = {
     [4724] = { name = "Humbert's Helm", source = "Dun Garok Rifleman", type = "Kill", zone = "Hillsbrad Foothills", drop = "3.8%" },
     [5187] = { name = "Rhahk'Zor's Hammer", source = "Rhahk'Zor", type = "Kill", zone = "The Deadmines", drop = "76.3%" },
     [5191] = { name = "Cruel Barb", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "15.8%" },
-    [5192] = { name = "Silver-plated Battleboots", source = "Sneed", type = "Kill", zone = "The Deadmines", drop = "38.3%" },
+    [5192] = { name = "Thief's Blade", source = "Mr. Smite", type = "Kill", zone = "The Deadmines", drop = "38.3%" },
+    [6459] = { name = "Savage Trodders", source = "Lord Serpentis", type = "Kill", zone = "Wailing Caverns", drop = "28.6%" },
+    [10332] = { name = "Scarlet Boots", source = "Scarlet Monastery", type = "Kill", zone = "Scarlet Monastery", drop = "Común" },
     [5193] = { name = "Cape of the Brotherhood", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "23.0%" },
     [5194] = { name = "Taskmaster Axe", source = "Sneed", type = "Kill", zone = "The Deadmines", drop = "27.6%" },
     [5195] = { name = "Gold-flecked Gloves", source = "Sneed", type = "Kill", zone = "The Deadmines", drop = "67.5%" },
@@ -296,11 +308,19 @@ ns.Data.BiSItems = {
     [9640] = { name = "Vice Grips", source = "Antu'sul", type = "Kill", zone = "Zul'Farrak", drop = "30.0%" },
     [9641] = { name = "Lifeblood Amulet", source = "Antu'sul", type = "Kill", zone = "Zul'Farrak", drop = "33.0%" },
     [10330] = { name = "Scarlet Leggings", source = "Scarlet Commander Mograine", type = "Kill", zone = "Scarlet Monastery", drop = "14.0%" },
+    -- Conjunto: Armadura Defias ennegrecida (Blackened Defias Armor - Minas de la Muerte)
     [10399] = { name = "Blackened Defias Armor", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "15.6%" },
+    [10400] = { name = "Blackened Defias Leggings", source = "Captain Greenskin", type = "Kill", zone = "The Deadmines", drop = "20.0%" },
+    [10401] = { name = "Blackened Defias Gloves", source = "Rhahk'Zor / Despojo", type = "Kill", zone = "The Deadmines", drop = "Raro" },
+    [10402] = { name = "Blackened Defias Boots", source = "Despojo de Mazmorra", type = "Kill", zone = "The Deadmines", drop = "Raro" },
+    [10403] = { name = "Blackened Defias Belt", source = "Despojo de Mazmorra", type = "Kill", zone = "The Deadmines", drop = "Raro" },
+
+    -- Conjunto: Abrazo de la víbora (Embrace of the Viper - Cuevas de los Lamentos)
+    [6473] = { name = "Armor of the Fang", source = "Lord Pythas", type = "Kill", zone = "Wailing Caverns", drop = "55.3%" },
     [10410] = { name = "Leggings of the Fang", source = "Lord Cobrahn", type = "Kill", zone = "Wailing Caverns", drop = "18.0%" },
     [10411] = { name = "Footpads of the Fang", source = "Lord Serpentis", type = "Kill", zone = "Wailing Caverns", drop = "21.5%" },
-    [10412] = { name = "Belt of the Fang", source = "Lord Kresh", type = "Kill", zone = "Wailing Caverns", drop = "20.0%" },
-    [10413] = { name = "Gloves of the Fang", source = "Mundo / Despojo", type = "Kill", zone = "Wailing Caverns", drop = "Raro" },
+    [10412] = { name = "Belt of the Fang", source = "Lady Anacondra", type = "Kill", zone = "Wailing Caverns", drop = "20.0%" },
+    [10413] = { name = "Gloves of the Fang", source = "Druidas del Colmillo", type = "Kill", zone = "Wailing Caverns", drop = "Raro" },
     [10761] = { name = "Coldrage Dagger", source = "Amnennar the Coldbringer", type = "Kill", zone = "Razorfen Downs", drop = "18.6%" },
     [10762] = { name = "Robes of the Lich", source = "Amnennar the Coldbringer", type = "Kill", zone = "Razorfen Downs", drop = "39.2%" },
     [10763] = { name = "Icemetal Barbute", source = "Amnennar the Coldbringer", type = "Kill", zone = "Razorfen Downs", drop = "36.9%" },
@@ -372,14 +392,14 @@ ns.Data.BiSItems = {
     [7720] = { name = "Whitemane's Chapeau", source = "High Inquisitor Whitemane", type = "Kill", zone = "Scarlet Monastery", drop = "37.1%" },
     [7723] = { name = "Mograine's Might", source = "Scarlet Commander Mograine", type = "Kill", zone = "Scarlet Monastery", drop = "19.1%" },
     [7724] = { name = "Gauntlets of Divinity", source = "Scarlet Commander Mograine", type = "Kill", zone = "Scarlet Monastery", drop = "19.9%" },
-    [7730] = { name = "Cobalt Crusher", source = "Arcanist Doan", type = "Kill", zone = "Scarlet Monastery", drop = "Común" },
+    [7730] = { name = "Fleshhide Shoulders", source = "Interrogator Vishas", type = "Kill", zone = "Scarlet Monastery", drop = "35.0%" },
     [8345] = { name = "Wolfshead Helm", source = "", type = "Recipe", zone = "", drop = "Misión / Receta" },
     [9416] = { name = "Grimlok's Charge", source = "Grimlok", type = "Kill", zone = "Uldaman", drop = "19.0%" },
     [9445] = { name = "Grubbis Paws", source = "Grubbis", type = "Kill", zone = "Gnomeregan", drop = "8.4%" },
     [9446] = { name = "Electrocutioner Leg", source = "Electrocutioner 6000", type = "Kill", zone = "Gnomeregan", drop = "16.2%" },
     [9447] = { name = "Electrocutioner Lagnut", source = "Electrocutioner 6000", type = "Kill", zone = "Gnomeregan", drop = "32.0%" },
     [9454] = { name = "Acidic Walkers", source = "Viscous Fallout", type = "Kill", zone = "Gnomeregan", drop = "59.7%" },
-    [9623] = { name = "Civinad Robes", source = "Rig Wars", type = "Quest", zone = "Gnomeregan", drop = "Misión / Receta" },
+    [9623] = { name = "Triprunner Dungarees", source = "Rig Wars", type = "Quest", zone = "Gnomeregan", drop = "Misión / Receta" },
     [10041] = { name = "Dreamweave Circlet", source = "", type = "Recipe", zone = "", drop = "Misión / Receta" },
     [10330] = { name = "Scarlet Leggings", source = "Scarlet Commander Mograine", type = "Kill", zone = "Scarlet Monastery", drop = "14.0%" },
     [10399] = { name = "Blackened Defias Armor", source = "Edwin VanCleef", type = "Kill", zone = "The Deadmines", drop = "15.6%" },
@@ -457,6 +477,7 @@ ns.Data.BiSItems = {
     [13340] = { name = "Cape of the Black Baron", source = "Baron Rivendare", type = "Kill", zone = "Stratholme", drop = "15.1%" },
     [13346] = { name = "Robes of the Exalted", source = "Baron Rivendare", type = "Kill", zone = "Stratholme", drop = "14.8%" },
     [13349] = { name = "Scepter of the Unholy", source = "Baron Rivendare", type = "Kill", zone = "Stratholme", drop = "15.2%" },
+    [13358] = { name = "Wyrmtongue Shoulders", source = "Balnazzar", type = "Kill", zone = "Stratholme", drop = "20.0%" },
     [13386] = { name = "Archivist Cape", source = "Archivist Galford", type = "Kill", zone = "Stratholme", drop = "21.4%" },
     [13396] = { name = "Skul's Ghastly Touch", source = "Skul", type = "Kill", zone = "Stratholme", drop = "26.7%" },
     [13397] = { name = "Stoneskin Gargoyle Cape", source = "Stonespine", type = "Kill", zone = "Stratholme", drop = "31.1%" },
@@ -652,6 +673,58 @@ ns.Data.BiSSlotsOrder = {
     { key = "Relic", name = "A Distancia / Reliquia" },
 }
 
+-- =========================================================================
+-- CANDIDATOS ADICIONALES POR RANURA (Para evaluación dinámica y sets icónicos)
+-- =========================================================================
+ns.Data.BiSCandidates = {
+    ["ROGUE"] = {
+        ["15-25"] = {
+            Chest = { 10399, 6473 },            -- Blackened Defias Armor vs Armor of the Fang
+            Legs = { 10410, 10400 },             -- Leggings of the Fang vs Blackened Defias Leggings
+            Hands = { 10413, 10401 },            -- Gloves of the Fang vs Blackened Defias Gloves
+            Feet = { 10411, 10402 },             -- Footpads of the Fang vs Blackened Defias Boots
+            Waist = { 6468, 10412, 10403 },      -- Deviate Scale Belt vs Belt of the Fang vs Blackened Defias Belt
+            MainHand = { 5191, 1935 },           -- Cruel Barb vs Assassin's Blade
+            SecondaryHand = { 6633, 6472, 1935 },-- Thief's Blade vs Tail Spike vs Assassin's Blade
+            Back = { 5193 },                     -- Cape of the Brotherhood
+        },
+    },
+    ["DRUID"] = {
+        ["15-25"] = {
+            Chest = { 6473, 10399 },            -- Armor of the Fang vs Blackened Defias Armor
+            Legs = { 10410, 10400 },             -- Leggings of the Fang vs Blackened Defias Leggings
+            Hands = { 10413, 10401 },            -- Gloves of the Fang vs Blackened Defias Gloves
+            Feet = { 10411, 10402 },             -- Footpads of the Fang vs Blackened Defias Boots
+            Waist = { 6468, 10412, 10403 },      -- Deviate Scale Belt vs Belt of the Fang vs Blackened Defias Belt
+            MainHand = { 6505, 5187 },           -- Crescent Staff vs Rhahk'Zor's Hammer
+            Back = { 5193 },                     -- Cape of the Brotherhood
+        },
+    },
+    ["HUNTER"] = {
+        ["15-25"] = {
+            Chest = { 6473, 10399 },
+            Legs = { 10410, 10400 },
+            Hands = { 10413, 10401 },
+            Feet = { 10411, 10402 },
+            Waist = { 6468, 10412, 10403 },
+            MainHand = { 5191, 6505 },
+            SecondaryHand = { 6472, 6633 },
+            Back = { 5193 },
+        },
+    },
+    ["SHAMAN"] = {
+        ["15-25"] = {
+            Chest = { 6473, 10399, 6324 },
+            Legs = { 10410, 10400, 6386 },
+            Hands = { 10413, 10401, 6393 },
+            Feet = { 10411, 10402, 6344 },
+            Waist = { 6468, 10412, 6392 },
+            MainHand = { 6505, 5187 },
+            Back = { 5193, 6449 },
+        },
+    },
+}
+
 ns.Data.BiS = {
     ["WARRIOR"] = {
         name = "Guerrero",
@@ -739,7 +812,7 @@ ns.Data.BiS = {
                     Hands = 4083,
                     Waist = 6319,
                     Legs = 23173,
-                    Feet = 5192,
+                    Feet = 6459,
                     Finger = 6321,
                     RFinger = 2933,
                     Trinket = 4381,
@@ -758,7 +831,7 @@ ns.Data.BiS = {
                     Hands = 4083,
                     Waist = 6319,
                     Legs = 23173,
-                    Feet = 5192,
+                    Feet = 6459,
                     Finger = 6321,
                     RFinger = 2933,
                     Trinket = 4381,
@@ -777,7 +850,7 @@ ns.Data.BiS = {
                     Hands = 4083,
                     Waist = 6319,
                     Legs = 23173,
-                    Feet = 5192,
+                    Feet = 6459,
                     Finger = 6321,
                     RFinger = 2933,
                     Trinket = 4381,
@@ -798,7 +871,7 @@ ns.Data.BiS = {
                     Hands = 7724,
                     Waist = 6319,
                     Legs = 10330,
-                    Feet = 5192,
+                    Feet = 10332,
                     Finger = 7686,
                     RFinger = 9447,
                     Trinket = 4381,
@@ -817,7 +890,7 @@ ns.Data.BiS = {
                     Hands = 7724,
                     Waist = 6319,
                     Legs = 10330,
-                    Feet = 5192,
+                    Feet = 10332,
                     Finger = 7686,
                     RFinger = 9447,
                     Trinket = 4381,
@@ -836,7 +909,7 @@ ns.Data.BiS = {
                     Hands = 7724,
                     Waist = 6319,
                     Legs = 10330,
-                    Feet = 5192,
+                    Feet = 10332,
                     Finger = 7686,
                     RFinger = 9447,
                     Trinket = 4381,
@@ -999,8 +1072,8 @@ ns.Data.BiS = {
                     RFinger = 18821,
                     Trinket = 13965,
                     RTrinket = 11815,
-                    MainHand = 17075,
-                    SecondaryHand = 18832,
+                    MainHand = 17076,
+                    SecondaryHand = 0,
                     Relic = 17069,
                 },
                 ["prot"] = {
@@ -1130,7 +1203,7 @@ ns.Data.BiS = {
                     Hands = 4083,
                     Waist = 6319,
                     Legs = 23173,
-                    Feet = 5192,
+                    Feet = 6459,
                     Finger = 6321,
                     RFinger = 2933,
                     Trinket = 4381,
@@ -1149,7 +1222,7 @@ ns.Data.BiS = {
                     Hands = 4083,
                     Waist = 6319,
                     Legs = 23173,
-                    Feet = 5192,
+                    Feet = 6459,
                     Finger = 6321,
                     RFinger = 2933,
                     Trinket = 4381,
@@ -1189,7 +1262,7 @@ ns.Data.BiS = {
                     Hands = 7724,
                     Waist = 6319,
                     Legs = 10330,
-                    Feet = 5192,
+                    Feet = 10332,
                     Finger = 7686,
                     RFinger = 9447,
                     Trinket = 4381,
@@ -1208,7 +1281,7 @@ ns.Data.BiS = {
                     Hands = 7724,
                     Waist = 6319,
                     Legs = 10330,
-                    Feet = 5192,
+                    Feet = 10332,
                     Finger = 7686,
                     RFinger = 9447,
                     Trinket = 4381,
@@ -1976,7 +2049,7 @@ ns.Data.BiS = {
                 ["sword"] = {
                     Head = 13404,
                     Neck = 15411,
-                    Shoulder = 12927,
+                    Shoulder = 13358,
                     Back = 13340,
                     Chest = 14637,
                     Wrists = 13120,
@@ -1995,7 +2068,7 @@ ns.Data.BiS = {
                 ["dagger"] = {
                     Head = 13404,
                     Neck = 15411,
-                    Shoulder = 12927,
+                    Shoulder = 13358,
                     Back = 13340,
                     Chest = 14637,
                     Wrists = 13120,
@@ -2541,13 +2614,13 @@ ns.Data.BiS = {
                     Head = 4385,
                     Neck = 20444,
                     Shoulder = 5254,
-                    Back = 5444,
-                    Chest = 2870,
-                    Wrists = 5943,
-                    Hands = 4083,
-                    Waist = 6319,
-                    Legs = 23173,
-                    Feet = 5192,
+                    Back = 5193,
+                    Chest = 6473,
+                    Wrists = 3230,
+                    Hands = 10413,
+                    Waist = 6468,
+                    Legs = 10410,
+                    Feet = 10411,
                     Finger = 6321,
                     RFinger = 2933,
                     Trinket = 4381,
@@ -2606,7 +2679,7 @@ ns.Data.BiS = {
                     Hands = 7724,
                     Waist = 6319,
                     Legs = 10330,
-                    Feet = 5192,
+                    Feet = 10332,
                     Finger = 7686,
                     RFinger = 9447,
                     Trinket = 4381,
@@ -3609,7 +3682,7 @@ ns.Data.BiS = {
                     Neck = 20444,
                     Shoulder = 5404,
                     Back = 5193,
-                    Chest = 6473,
+                    Chest = 10399,
                     Wrists = 3230,
                     Hands = 10413,
                     Waist = 6468,
@@ -3784,7 +3857,7 @@ ns.Data.BiS = {
                 ["feral_cat"] = {
                     Head = 8345,
                     Neck = 15411,
-                    Shoulder = 12927,
+                    Shoulder = 13358,
                     Back = 13340,
                     Chest = 14637,
                     Wrists = 16710,
@@ -3856,7 +3929,7 @@ ns.Data.BiS = {
                 ["feral_cat"] = {
                     Head = 8345,
                     Neck = 18404,
-                    Shoulder = 12927,
+                    Shoulder = 13358,
                     Back = 13340,
                     Chest = 14637,
                     Wrists = 19146,

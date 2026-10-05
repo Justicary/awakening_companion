@@ -43,44 +43,47 @@ async function main() {
         }
       }
 
+      const enableLiveScraping = process.env.SCRAPE_LIVE === 'true';
       let scraped = false;
-      // Attempt live scraping across candidate URLs
-      for (const url of spec.wowheadUrls) {
-        try {
-          process.stdout.write(`  │   Intento Wowhead: ${url} ... `);
-          const html = await scraper.fetchPage(url);
-          if (html) {
-            const parsedSlots = scraper.parseGuideHtml(html);
-            const foundCount = Object.keys(parsedSlots).length;
-            if (foundCount > 0) {
-              console.log(`✅ OK (${foundCount} objetos encontrados)`);
-              for (const [slot, item] of Object.entries(parsedSlots)) {
-                if (item && item.itemId > 0) {
-                  specSlots[slot as SlotKey] = item;
+
+      if (enableLiveScraping) {
+        // Attempt live scraping across candidate URLs
+        for (const url of spec.wowheadUrls) {
+          try {
+            process.stdout.write(`  │   Intento Wowhead: ${url} ... `);
+            const html = await scraper.fetchPage(url);
+            if (html) {
+              const parsedSlots = scraper.parseGuideHtml(html);
+              const foundCount = Object.keys(parsedSlots).length;
+              if (foundCount > 0) {
+                console.log(`✅ OK (${foundCount} objetos encontrados)`);
+                for (const [slot, item] of Object.entries(parsedSlots)) {
+                  if (item && item.itemId > 0) {
+                    specSlots[slot as SlotKey] = item;
+                  }
                 }
-              }
-              if (!scraped) {
-                scraped = true;
-                liveScrapedSpecs++;
-              }
-              // If we retrieved a comprehensive set (14+ items), avoid unnecessary further requests
-              if (foundCount >= 14) {
-                break;
+                if (!scraped) {
+                  scraped = true;
+                  liveScrapedSpecs++;
+                }
+                if (foundCount >= 14) {
+                  break;
+                }
+              } else {
+                console.log('⚠️ Sin tabla de objetos BiS');
               }
             } else {
-              console.log('⚠️ Sin tabla de objetos BiS');
+              console.log('❌ No disponible (404/403/Timeout)');
             }
-          } else {
-            console.log('❌ No disponible (404/403/Timeout)');
+          } catch (err: unknown) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.log(`❌ Error: ${errMsg}`);
           }
-        } catch (err: unknown) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.log(`❌ Error: ${errMsg}`);
         }
       }
 
       if (!scraped) {
-        console.log(`  │   ↳ Usando datos base verificados (Pre-Raid / Fase 1)`);
+        console.log(`  │   ↳ Usando datos verificados AtlasLoot Classic (Raid Fase 1 / MC & Onyxia)`);
       }
 
       const itemCount = Object.keys(specSlots).length;

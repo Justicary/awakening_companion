@@ -1,4 +1,5 @@
 local ADDON, ns = ...
+local addon = ns
 
 local MainUI = {}
 ns.MainUI = MainUI
@@ -240,7 +241,24 @@ function MainUI:Init()
     f.subStatus:SetPoint("RIGHT", f, "RIGHT", -36, 0)
     f.subStatus:SetJustifyH("LEFT")
     f.subStatus:SetWordWrap(false)
-    f.subStatus:SetText("WoW Classic Forever · Servidor Activo · v" .. (ns.VERSION or "1.0.0"))
+    f.subStatus:SetText("Cargando estadísticas...")
+
+    -- Botón interactivo invisible sobre el subtítulo para mostrar el Tooltip detallado de Stat Weights y Caps
+    local subBtn = CreateFrame("Button", nil, f)
+    subBtn:SetPoint("TOPLEFT", f.subStatus, "TOPLEFT", 0, 4)
+    subBtn:SetPoint("BOTTOMRIGHT", f.subStatus, "BOTTOMRIGHT", 0, -4)
+    subBtn:EnableMouse(true)
+    subBtn:SetScript("OnEnter", function(selfBtn)
+        local _, pClass = UnitClass("player")
+        local spec = selectedBiSSpec or (ns.GetClassDefaultEnchantSpec and ns.GetClassDefaultEnchantSpec(pClass))
+        if ns.ShowStatWeightsTooltip then
+            ns.ShowStatWeightsTooltip(selfBtn, pClass, spec)
+        end
+    end)
+    subBtn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    f.subStatusBtn = subBtn
 
     -- 3. Inset Superior: Contenedor de Listas y Tablas
     local okBox, listBox = pcall(CreateFrame, "Frame", nil, f, "InsetFrameTemplate")
@@ -484,6 +502,7 @@ function MainUI:Init()
 
     mainFrame = f
     MainUI.frame = f
+    self:UpdateSubtitle()
     MainUI:SelectTab(1)
 end
 
@@ -605,6 +624,9 @@ end
 -- VISTA 1: BEST IN SLOT (BiS) BASADO EN NIVEL Y CLASE DEL JUGADOR
 -- =========================================================================
 local bisRowFrames = {}
+local bisPreloadBatchID = 0
+local currentPreloadState = nil
+local bisPreloadTimerFrame = nil
 
 function MainUI:BuildBiSList(parent)
     -- 1. Barra de controles superiores: Selector de Modo (Radio buttons), Tier y Rama
@@ -877,7 +899,8 @@ function MainUI:BuildBiSList(parent)
                 GameTooltip:AddDoubleLine("|cFFFFD100Estado de posesión:|r", stStr)
 
                 if ns.GetSlotUpgrade then
-                    local pctUpgrade, _, candScore, eqScore = ns.GetSlotUpgrade(slotInfo.key, selfRow.itemID, selectedBiSSpec)
+                    local pClass = (UnitClassBase and UnitClassBase("player")) or select(2, UnitClass("player")) or "WARRIOR"
+                    local pctUpgrade, _, candScore, eqScore = ns.GetSlotUpgrade(slotInfo.key, selfRow.itemID, pClass, selectedBiSSpec)
                     if pctUpgrade and pctUpgrade > 0 then
                         GameTooltip:AddLine(" ")
                         GameTooltip:AddDoubleLine("|cFF00FF00▲ Mejora (StatWeights):|r", string.format("|cFF00FF00+%.1f%%|r", pctUpgrade))
@@ -920,6 +943,72 @@ function MainUI:BuildBiSList(parent)
     end
 
     content:SetHeight(math.max(10, -yOffset))
+
+    -- 3. Overlay de carga y precarga asíncrona de objetos BiS
+    local loadingOverlay = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    loadingOverlay:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
+    loadingOverlay:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 18, 0)
+    loadingOverlay:SetFrameLevel(scroll:GetFrameLevel() + 25)
+    loadingOverlay:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    loadingOverlay:SetBackdropColor(0.04, 0.06, 0.09, 0.94)
+    loadingOverlay:SetBackdropBorderColor(0.0, 0.8, 0.7, 0.7)
+
+    -- Spinner giratorio
+    local spinner = loadingOverlay:CreateTexture(nil, "ARTWORK")
+    spinner:SetSize(28, 28)
+    spinner:SetPoint("CENTER", loadingOverlay, "CENTER", 0, 26)
+    spinner:SetTexture("Interface\\Icons\\spell_holy_magicalsentry")
+    loadingOverlay.spinner = spinner
+
+    local spinAngle = 0
+    loadingOverlay:SetScript("OnUpdate", function(self, elapsed)
+        spinAngle = (spinAngle + elapsed * 240) % 360
+        if spinner.SetRotation then
+            spinner:SetRotation(math.rad(spinAngle))
+        end
+    end)
+
+    -- Título de carga
+    local loadTitle = loadingOverlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    loadTitle:SetPoint("TOP", spinner, "BOTTOM", 0, -8)
+    loadTitle:SetText("|cFFFFD100Analizando equipamiento y base de datos...|r")
+    loadingOverlay.title = loadTitle
+
+    -- Subtítulo / estado
+    local loadStatus = loadingOverlay:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    loadStatus:SetPoint("TOP", loadTitle, "BOTTOM", 0, -4)
+    loadStatus:SetText("|cFF00FFCCCargando objetos de la base de datos...|r")
+    loadingOverlay.status = loadStatus
+
+    -- Barra de progreso
+    local progressBar = CreateFrame("StatusBar", nil, loadingOverlay, "BackdropTemplate")
+    progressBar:SetSize(260, 10)
+    progressBar:SetPoint("TOP", loadStatus, "BOTTOM", 0, -8)
+    progressBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    progressBar:SetStatusBarColor(0.0, 0.9, 0.8, 1)
+    progressBar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    progressBar:SetBackdropColor(0.1, 0.12, 0.15, 0.9)
+    progressBar:SetBackdropBorderColor(0.2, 0.25, 0.3, 0.8)
+    progressBar:SetMinMaxValues(0, 1)
+    progressBar:SetValue(0)
+
+    local barText = progressBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    barText:SetPoint("CENTER", progressBar, "CENTER", 0, 0)
+    barText:SetText("0%")
+    loadingOverlay.bar = progressBar
+    loadingOverlay.barText = barText
+
+    loadingOverlay:Hide()
+    parent.loadingOverlay = loadingOverlay
 end
 
 function MainUI:SetBiSMode(mode)
@@ -956,6 +1045,21 @@ function MainUI:SetBiSMode(mode)
     self:UpdateBiSView()
     self:SelectBiSSlot(selectedBiSSlot or "Head")
     self:UpdateBottomButtons()
+end
+
+--- Actualiza dinámicamente el subtítulo de la cabecera con la prioridad de estadísticas y caps de la clase
+function MainUI:UpdateSubtitle()
+    if not mainFrame or not mainFrame.subStatus then return end
+    local _, playerClass = UnitClass("player")
+    local spec = selectedBiSSpec
+    if not spec or spec == "" then
+        spec = ns.GetClassDefaultEnchantSpec and ns.GetClassDefaultEnchantSpec(playerClass)
+    end
+    if ns.GetSpecSubtitle then
+        mainFrame.subStatus:SetText(ns.GetSpecSubtitle(playerClass, spec))
+    else
+        mainFrame.subStatus:SetText("WoW Classic Forever · Servidor Activo")
+    end
 end
 
 function MainUI:UpdateBiSView()
@@ -1080,8 +1184,12 @@ function MainUI:UpdateBiSView()
     end
 
     -- ---------------------------------------------------------------------
-    -- MODO EQUIPO BiS HABITUAL
+    -- MODO EQUIPO BiS HABITUAL (VALIDACIÓN CANÓNICA Y PRECARGA ASÍNCRONA)
     -- ---------------------------------------------------------------------
+    if view.loadingOverlay then
+        view.loadingOverlay:Hide()
+    end
+
     local classData = ns.Data.BiS and (ns.Data.BiS[playerClass] or ns.Data.BiS["WARRIOR"])
     if not classData then return end
 
@@ -1127,8 +1235,245 @@ function MainUI:UpdateBiSView()
         view.specBtn:SetText(specName:gsub("%s*%(.-%)", ""))
     end
 
-    -- Métrica Hero superior (Estilo Olympus)
-    local acquired, total, pct = ns.GetBiSProgress(playerClass, selectedBiSBracket, selectedBiSSpec)
+    -- Actualizar subtítulo dinámico con prioridad de atributos y caps de la especialización seleccionada
+    self:UpdateSubtitle()
+
+    -- Nivel 1-14 o forzado inmediato: no requiere precarga pesada
+    if selectedBiSBracket == "1-14" or forceImmediate then
+        if view.loadingOverlay then view.loadingOverlay:Hide() end
+        self:RenderResolvedBiS(playerClass, selectedBiSBracket, selectedBiSSpec, playerLevel)
+        return
+    end
+
+    -- Recopilar todos los itemIDs candidatos para este tramo y especialización
+    local itemIDs = {}
+    local validator = ns.Validator or (addon and addon.Validator) or (_G.AwakeningData and _G.AwakeningData.Validator)
+    if validator and validator.GetItemsToPreload then
+        itemIDs = validator:GetItemsToPreload(playerClass, selectedBiSBracket, selectedBiSSpec)
+    end
+
+    local uncached = {}
+    local totalCount = 0
+    for _, id in ipairs(itemIDs) do
+        if id and id > 0 then
+            totalCount = totalCount + 1
+            local name = GetItemInfo(id)
+            if not name then
+                uncached[id] = true
+            end
+        end
+    end
+
+    local uncachedCount = 0
+    for _ in pairs(uncached) do uncachedCount = uncachedCount + 1 end
+
+    -- Si todos los objetos están cacheados, renderizar inmediatamente sin demora
+    if uncachedCount == 0 then
+        if view.loadingOverlay then view.loadingOverlay:Hide() end
+        self:RenderResolvedBiS(playerClass, selectedBiSBracket, selectedBiSSpec, playerLevel)
+        return
+    end
+
+    -- Mostrar la pantalla de carga (overlay)
+    if view.loadingOverlay then
+        view.loadingOverlay:Show()
+        view.loadingOverlay.title:SetText("|cFFFFD100Analizando equipamiento y base de datos...|r")
+        view.loadingOverlay.status:SetText(string.format("|cFF00FFCCCargando objetos... (%d restantes)|r", uncachedCount))
+        local loaded = totalCount - uncachedCount
+        view.loadingOverlay.bar:SetMinMaxValues(0, totalCount)
+        view.loadingOverlay.bar:SetValue(loaded)
+        local pct = totalCount > 0 and math.floor((loaded / totalCount) * 100) or 0
+        view.loadingOverlay.barText:SetText(string.format("%d / %d (%d%%)", loaded, totalCount, pct))
+    end
+
+    bisPreloadBatchID = (bisPreloadBatchID or 0) + 1
+    local currentBatch = bisPreloadBatchID
+
+    currentPreloadState = {
+        batchID = currentBatch,
+        uncached = uncached,
+        totalCount = totalCount,
+        playerClass = playerClass,
+        bracket = selectedBiSBracket,
+        spec = selectedBiSSpec,
+        level = playerLevel,
+    }
+
+    -- Solicitar la carga de cada ítem no cargado en memoria mediante C_Item.RequestLoadItemDataByID
+    for id in pairs(uncached) do
+        if C_Item and C_Item.RequestLoadItemDataByID then
+            pcall(C_Item.RequestLoadItemDataByID, id)
+        elseif Item and Item.CreateFromItemID then
+            pcall(function()
+                local itemObj = Item:CreateFromItemID(id)
+                if itemObj and itemObj.ContinueOnItemLoad then
+                    itemObj:ContinueOnItemLoad(function()
+                        if bisPreloadBatchID == currentBatch then
+                            MainUI:OnPreloadItemReceived(id)
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+
+    -- Temporizador de seguridad (máximo 2.0s para garantizar fluidez y respuesta)
+    if not bisPreloadTimerFrame then
+        bisPreloadTimerFrame = CreateFrame("Frame")
+    end
+
+    local timerElapsed = 0
+    bisPreloadTimerFrame:SetScript("OnUpdate", function(selfFrame, elapsed)
+        timerElapsed = timerElapsed + elapsed
+        if bisPreloadBatchID ~= currentBatch or not currentPreloadState then
+            selfFrame:SetScript("OnUpdate", nil)
+            return
+        end
+
+        local anyResolved = false
+        for id in pairs(currentPreloadState.uncached) do
+            local name = GetItemInfo(id)
+            if name then
+                currentPreloadState.uncached[id] = nil
+                anyResolved = true
+            end
+        end
+
+        local rem = 0
+        for _ in pairs(currentPreloadState.uncached) do rem = rem + 1 end
+
+        if anyResolved and view.loadingOverlay and view.loadingOverlay:IsShown() then
+            local loaded = currentPreloadState.totalCount - rem
+            local tot = currentPreloadState.totalCount
+            view.loadingOverlay.bar:SetValue(loaded)
+            local pct = tot > 0 and math.floor((loaded / tot) * 100) or 100
+            view.loadingOverlay.barText:SetText(string.format("%d / %d (%d%%)", loaded, tot, pct))
+            view.loadingOverlay.status:SetText(string.format("|cFF00FFCCCargando objetos... (%d restantes)|r", rem))
+        end
+
+        if rem == 0 or timerElapsed >= 2.0 then
+            selfFrame:SetScript("OnUpdate", nil)
+            if view.loadingOverlay then view.loadingOverlay:Hide() end
+            local state = currentPreloadState
+            currentPreloadState = nil
+            if state then
+                MainUI:RenderResolvedBiS(state.playerClass, state.bracket, state.spec, state.level)
+            end
+        end
+    end)
+end
+
+--- Recepción asíncrona de evento GET_ITEM_INFO_RECEIVED durante la precarga
+function MainUI:OnPreloadItemReceived(itemID)
+    if not currentPreloadState or not itemID then return end
+    if currentPreloadState.uncached and currentPreloadState.uncached[itemID] then
+        currentPreloadState.uncached[itemID] = nil
+        local rem = 0
+        for _ in pairs(currentPreloadState.uncached) do rem = rem + 1 end
+
+        local view = viewsByKey["bis"] or views[tabIndexByKey["bis"] or 2]
+        if view and view.loadingOverlay and view.loadingOverlay:IsShown() then
+            local loaded = currentPreloadState.totalCount - rem
+            local tot = currentPreloadState.totalCount
+            view.loadingOverlay.bar:SetValue(loaded)
+            local pct = tot > 0 and math.floor((loaded / tot) * 100) or 100
+            view.loadingOverlay.barText:SetText(string.format("%d / %d (%d%%)", loaded, tot, pct))
+            view.loadingOverlay.status:SetText(string.format("|cFF00FFCCCargando objetos... (%d restantes)|r", rem))
+        end
+
+        if rem == 0 then
+            if bisPreloadTimerFrame then bisPreloadTimerFrame:SetScript("OnUpdate", nil) end
+            if view and view.loadingOverlay then view.loadingOverlay:Hide() end
+            local state = currentPreloadState
+            currentPreloadState = nil
+            if state then
+                self:RenderResolvedBiS(state.playerClass, state.bracket, state.spec, state.level)
+            end
+        end
+    end
+end
+
+--- Renderiza la tabla de objetos BiS con los mejores candidatos validados
+function MainUI:RenderResolvedBiS(playerClass, bracketKey, specKey, playerLevel)
+    local view = viewsByKey["bis"] or views[tabIndexByKey["bis"] or 2]
+    if not view then return end
+
+    playerLevel = tonumber(playerLevel) or (UnitLevel and UnitLevel("player")) or 1
+    playerClass = (playerClass or (UnitClassBase and UnitClassBase("player")) or select(2, UnitClass("player")) or "WARRIOR"):upper()
+
+    local classData = ns.Data.BiS and (ns.Data.BiS[playerClass] or ns.Data.BiS["WARRIOR"])
+    if not classData then return end
+
+    local bracketMaxLevel = 60
+    if classData.brackets then
+        for _, b in ipairs(classData.brackets) do
+            if b.key == bracketKey then
+                bracketMaxLevel = b.maxLevel
+                break
+            end
+        end
+    end
+
+    -- 1. Evaluar candidatos canónicos con IsItemEligible y seleccionar el mejor por StatWeights
+    local resolvedItems = {}
+    local assignedUniqueItems = {}
+    local validator = ns.Validator or (addon and addon.Validator) or (_G.AwakeningData and _G.AwakeningData.Validator)
+    for _, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
+        local bestID, bestScore, bestMeta, reason
+        if validator and validator.GetBestItemForSlot then
+            bestID, bestScore, bestMeta, reason = validator:GetBestItemForSlot(playerClass, bracketKey, specKey, slotInfo.key, playerLevel, bracketMaxLevel, assignedUniqueItems)
+        else
+            local bracketSets = classData.sets and (classData.sets[bracketKey] or classData.sets["pre-raid"])
+            local activeSet = bracketSets and bracketSets[specKey]
+            bestID = activeSet and activeSet[slotInfo.key] or 0
+            if assignedUniqueItems[bestID] then
+                bestID = 0
+            end
+        end
+
+        if bestID and bestID > 0 then
+            if validator and validator.IsItemUniqueEquipped and validator:IsItemUniqueEquipped(bestID) then
+                assignedUniqueItems[bestID] = true
+            end
+        end
+
+        resolvedItems[slotInfo.key] = {
+            itemID = bestID or 0,
+            score = bestScore or 0,
+            meta = bestMeta,
+            reason = reason or "OK"
+        }
+    end
+
+    -- 2. Detectar si el arma principal es de dos manos para ajustar Secundaria
+    local is2HActive = false
+    local mhRes = resolvedItems["MainHand"]
+    if mhRes and mhRes.itemID and mhRes.itemID > 0 then
+        local _, _, _, _, _, _, _, _, mhLoc = GetItemInfo(mhRes.itemID)
+        if mhLoc == "INVTYPE_2HWEAPON" then
+            is2HActive = true
+        end
+    end
+
+    -- 3. Métrica Hero superior (Estilo Olympus) calculada sobre ranuras activas reales
+    local acquired = 0
+    local total = 0
+    for _, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
+        local is2HSlot = (slotInfo.key == "SecondaryHand" and is2HActive)
+        if not is2HSlot then
+            local res = resolvedItems[slotInfo.key]
+            if res and res.itemID and res.itemID > 0 then
+                total = total + 1
+                local eq, inB = ns.GetPlayerItemStatus(res.itemID)
+                if eq or inB then
+                    acquired = acquired + 1
+                end
+            elseif selectedBiSBracket ~= "1-14" then
+                total = total + 1
+            end
+        end
+    end
+    local pct = total > 0 and math.floor((acquired / total) * 100) or 0
     if mainFrame and mainFrame.heroTitle then
         mainFrame.heroTitle:SetText(string.format(
             "|cFFFFD100BiS %s (Nv. %d)|r · |cFFFFFFFF%d/%d (%d%%)|r",
@@ -1140,33 +1485,43 @@ function MainUI:UpdateBiSView()
         ))
     end
 
-    local bracketSets = classData.sets[selectedBiSBracket] or classData.sets["pre-raid"]
-    local activeSet = bracketSets and bracketSets[selectedBiSSpec]
-
+    -- 4. Renderizado nítido de las filas de la tabla
     for _, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
         local rFrame = bisRowFrames[slotInfo.key]
         if rFrame then
-            local itemID = activeSet and activeSet[slotInfo.key]
+            local res = resolvedItems[slotInfo.key]
+            local itemID = res and res.itemID or 0
+
             rFrame.mode = "gear"
             rFrame.enchantID = nil
             rFrame.enchantMeta = nil
-            rFrame.itemID = itemID
+            rFrame.itemID = (itemID > 0) and itemID or nil
             rFrame.slotName = slotInfo.name
             rFrame.slotKey = slotInfo.key
+            rFrame.reason = res and res.reason or "OK"
 
             if itemID and itemID > 0 then
-                local meta = ns.GetBiSItemMetadata(itemID)
+                local meta = res.meta or ns.GetBiSItemMetadata(itemID)
                 local isEquipped, inBags = ns.GetPlayerItemStatus(itemID)
+                local _, _, _, _, itemMinLevel = GetItemInfo(itemID)
+                if not itemMinLevel and meta and meta.minLevel then
+                    itemMinLevel = meta.minLevel
+                end
+                rFrame.itemMinLevel = itemMinLevel
 
-                -- Texto y color de estado (Equipado, En Bolsas, o % Mejora sobre equipo actual)
+                -- Texto y color de estado (Equipado, En Bolsas, Req. Nivel, Req. Profesión o % Mejora)
                 if isEquipped then
                     rFrame.statusLabel:SetText("|cFF00FF00Equipado|r")
                 elseif inBags then
                     rFrame.statusLabel:SetText("|cFF00CCFFEn Bolsas|r")
+                elseif res.reason == "PROFESSION_LOCKED" or (res.meta and res.meta.isProfLocked) then
+                    rFrame.statusLabel:SetText("|cFFFF8800Req. Profesión|r")
+                elseif itemMinLevel and itemMinLevel > playerLevel then
+                    rFrame.statusLabel:SetText(string.format("|cFFFFAA00Req. Nv. %d|r", itemMinLevel))
                 else
                     local statTxt = "|cFFFF5555Falta|r"
                     if ns.GetSlotUpgrade then
-                        local pctUpgrade = ns.GetSlotUpgrade(slotInfo.key, itemID, selectedBiSSpec)
+                        local pctUpgrade = ns.GetSlotUpgrade(slotInfo.key, itemID, playerClass, specKey)
                         if pctUpgrade and pctUpgrade > 0 then
                             statTxt = string.format("|cFF00FF00+%.0f%%|r", pctUpgrade)
                         end
@@ -1174,44 +1529,39 @@ function MainUI:UpdateBiSView()
                     rFrame.statusLabel:SetText(statTxt)
                 end
 
-                -- Consulta y carga segura de información del objeto
+                -- Consulta segura: gracias a la precarga previa, la información ya reside en el cliente
                 local name, link, quality, texture = SafeGetItemInfo(itemID)
-                local fastIcon = SafeGetItemIcon(itemID)
+                if not texture then
+                    texture = SafeGetItemIcon(itemID)
+                end
 
                 if link and texture then
                     rFrame.itemLink = link
                     rFrame.icon:SetTexture(texture)
                     rFrame.itemLabel:SetText(link)
+                elseif name and texture then
+                    local colorHex = (ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] and ITEM_QUALITY_COLORS[quality].hex) or "|cFFFFFFFF"
+                    local formattedLink = string.format("%s[%s]|r", colorHex, name)
+                    rFrame.itemLink = formattedLink
+                    rFrame.icon:SetTexture(texture)
+                    rFrame.itemLabel:SetText(formattedLink)
                 else
-                    rFrame.itemLink = nil
+                    local fastIcon = SafeGetItemIcon(itemID)
                     rFrame.icon:SetTexture(fastIcon)
                     local fallbackName = meta and meta.name or ("Objeto #" .. itemID)
-                    rFrame.itemLabel:SetText("|cFF0070DD" .. fallbackName .. "|r")
-
-                    if Item and Item.CreateFromItemID then
-                        pcall(function()
-                            local itemObj = Item:CreateFromItemID(itemID)
-                            if itemObj and itemObj.ContinueOnItemLoad then
-                                itemObj:ContinueOnItemLoad(function()
-                                    local n, l, q, t = SafeGetItemInfo(itemID)
-                                    if l and rFrame.itemID == itemID and selectedBiSMode == "gear" then
-                                        rFrame.itemLink = l
-                                        if t then rFrame.icon:SetTexture(t) end
-                                        rFrame.itemLabel:SetText(l)
-                                        if selectedBiSSlot == slotInfo.key then
-                                            MainUI:SelectBiSSlot(slotInfo.key)
-                                        end
-                                    end
-                                end)
-                            end
-                        end)
-                    elseif C_Item and C_Item.RequestLoadItemDataByID then
-                        pcall(C_Item.RequestLoadItemDataByID, itemID)
-                    end
+                    rFrame.itemLabel:SetText("|cFF0070DD[" .. fallbackName .. "]|r")
                 end
             else
+                local is2H = (slotInfo.key == "SecondaryHand" and is2HActive)
+                rFrame.itemMinLevel = nil
                 rFrame.icon:SetTexture("Interface\\PaperDoll\\UI-Backpack-EmptySlot")
-                rFrame.itemLabel:SetText("|cFF666666(Ranura vacía)|r")
+                if is2H then
+                    rFrame.itemLabel:SetText("|cFF888888(Arma 2M equipada)|r")
+                elseif selectedBiSBracket == "1-14" then
+                    rFrame.itemLabel:SetText("|cFF666666(Sin objeto en Nv. 1-14)|r")
+                else
+                    rFrame.itemLabel:SetText("|cFF666666(Ranura vacía)|r")
+                end
                 rFrame.statusLabel:SetText("")
                 rFrame.itemLink = nil
             end
@@ -1219,6 +1569,36 @@ function MainUI:UpdateBiSView()
     end
 
     MainUI:SelectBiSSlot(selectedBiSSlot or "Head")
+end
+
+--- Actualiza de forma ligera los estados de equipo y bolsas sin reiniciar la vista completa
+function MainUI:UpdateBiSItemStatuses()
+    if selectedBiSMode ~= "gear" then return end
+    local playerLevel = UnitLevel("player") or 1
+    for _, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
+        local rFrame = bisRowFrames[slotInfo.key]
+        if rFrame and rFrame.itemID and rFrame.itemID > 0 then
+            local isEquipped, inBags = ns.GetPlayerItemStatus(rFrame.itemID)
+            if isEquipped then
+                rFrame.statusLabel:SetText("|cFF00FF00Equipado|r")
+            elseif inBags then
+                rFrame.statusLabel:SetText("|cFF00CCFFEn Bolsas|r")
+            elseif rFrame.reason == "PROFESSION_LOCKED" then
+                rFrame.statusLabel:SetText("|cFFFF8800Req. Profesión|r")
+            elseif rFrame.itemMinLevel and rFrame.itemMinLevel > playerLevel then
+                rFrame.statusLabel:SetText(string.format("|cFFFFAA00Req. Nv. %d|r", rFrame.itemMinLevel))
+            else
+                local statTxt = "|cFFFF5555Falta|r"
+                if ns.GetSlotUpgrade then
+                    local pctUpgrade = ns.GetSlotUpgrade(slotInfo.key, rFrame.itemID, playerClass, selectedBiSSpec)
+                    if pctUpgrade and pctUpgrade > 0 then
+                        statTxt = string.format("|cFF00FF00+%.0f%%|r", pctUpgrade)
+                    end
+                end
+                rFrame.statusLabel:SetText(statTxt)
+            end
+        end
+    end
 end
 
 function MainUI:SelectBiSSlot(slotKey)
@@ -1313,9 +1693,13 @@ function MainUI:SelectBiSSlot(slotKey)
                     "|cFF88DDFFConsejo:|r Estas ranuras comenzarán a llenarse a partir del tramo |cFFFFD100Nivel 15-25|r mediante misiones de clase y las primeras mazmorras (Minas de la Muerte, Cuevas de los Lamentos, Castillo de Colmillo Oscuro)."
                 )
             else
-                mainFrame.detailTitle:SetText("|cFFFFD100Ranura sin objeto asignado|r")
+                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin opción viable para tu clase/nivel|r", rFrame and rFrame.slotName or slotKey))
                 self:ShowDetailRewards(nil)
-                mainFrame.detailText:SetText("No hay objeto Best-in-Slot definido para esta ranura en el tier actual.")
+                mainFrame.detailText:SetText(
+                    "|cFFFFFF00No hay objetos Best-in-Slot compatibles disponibles para esta ranura en tu nivel actual.|r\n\n" ..
+                    "• El motor de validación canónica ha evaluado los candidatos y filtró piezas incongruentes (ej. armaduras no permitidas para tu clase, ranuras incompatibles o requisitos de profesión activa no cumplidos).\n" ..
+                    "• Esta casilla se actualizará automáticamente a medida que subas de nivel o aprendas la profesión correspondiente."
+                )
             end
         end
         return
@@ -1324,7 +1708,16 @@ function MainUI:SelectBiSSlot(slotKey)
     local itemID = rFrame.itemID
     local meta = ns.GetBiSItemMetadata(itemID)
     local eq, inB = ns.GetPlayerItemStatus(itemID)
+    local playerLevel = UnitLevel("player") or 1
     local statusStr = eq and "|cFF00FF00Equipado actualmente en tu personaje|r" or (inB and "|cFF00CCFFEn tus bolsas (listo para usar)|r" or "|cFFFF5555Pendiente de conseguir|r")
+
+    if not eq and not inB then
+        if rFrame.reason == "PROFESSION_LOCKED" then
+            statusStr = "|cFFFF8800Req. Profesión Activa (ej. Ingeniería)|r"
+        elseif rFrame.itemMinLevel and rFrame.itemMinLevel > playerLevel then
+            statusStr = string.format("|cFFFFAA00Pendiente de nivel (Requiere Nivel %d)|r", rFrame.itemMinLevel)
+        end
+    end
 
     local nameStr = rFrame.itemLink or (meta and meta.name) or ("Objeto #" .. itemID)
 
@@ -1362,7 +1755,8 @@ function MainUI:SelectBiSSlot(slotKey)
         -- Calcular Mejora de StatWeights y formato según tipo de fuente
         local upgradeLine = ""
         if ns.GetSlotUpgrade then
-            local pctUpgrade, _, newScore, curScore = ns.GetSlotUpgrade(rFrame.slotKey, itemID, selectedBiSSpec)
+            local pClass = (UnitClassBase and UnitClassBase("player")) or select(2, UnitClass("player")) or "WARRIOR"
+            local pctUpgrade, _, newScore, curScore = ns.GetSlotUpgrade(rFrame.slotKey, itemID, pClass, selectedBiSSpec)
             if pctUpgrade and pctUpgrade > 0 then
                 upgradeLine = string.format("\n|cFF00FF00▲ Mejora estimada: +%.1f%%|r (Puntaje EP: %.1f vs %.1f equipado)", pctUpgrade, newScore, curScore)
             elseif eq then
@@ -1390,6 +1784,17 @@ function MainUI:SelectBiSSlot(slotKey)
                 statusStr,
                 upgradeLine
             )
+        end
+
+        if rFrame.reason == "PROFESSION_LOCKED" then
+            sourceDesc = sourceDesc .. "\n|cFFFF8800[Requisito de Profesión: Este objeto requiere una profesión específica activa para poder equiparse (ej. Ingeniería). Se sugiere conseguirlo si dispones de la profesión o buscar piezas alternativas]|r"
+        elseif rFrame.itemMinLevel and rFrame.itemMinLevel > playerLevel then
+            sourceDesc = sourceDesc .. string.format("\n|cFFFFAA00[Nivel Requerido: Nivel %d (Tu nivel actual es %d). Podrás equipar este objeto BiS al alcanzar dicho nivel]|r", rFrame.itemMinLevel, playerLevel)
+        end
+
+        local validator = ns.Validator or (addon and addon.Validator) or (_G.AwakeningData and _G.AwakeningData.Validator)
+        if validator and validator.IsItemUniqueEquipped and validator:IsItemUniqueEquipped(itemID) then
+            sourceDesc = sourceDesc .. "\n|cFF00CCFF[Propiedad: Objeto Único-Equipado (No se pueden equipar dos piezas idénticas simultáneamente)]|r"
         end
 
         if _G.AtlasLoot then
@@ -1515,12 +1920,12 @@ function MainUI:SetBiSWaypoint()
         return
     end
 
-    local _, playerClass = UnitClass("player")
-    local classData = ns.Data.BiS and (ns.Data.BiS[playerClass] or ns.Data.BiS["WARRIOR"])
-    if not classData then return end
-    local bracketSets = classData.sets[selectedBiSBracket] or classData.sets["pre-raid"]
-    local activeSet = bracketSets and bracketSets[selectedBiSSpec]
-    local itemID = activeSet and activeSet[selectedBiSSlot or "Head"]
+    local rFrame = bisRowFrames[selectedBiSSlot or "Head"]
+    local itemID = rFrame and rFrame.itemID
+    if not itemID or itemID == 0 then
+        ns.Print("Selecciona una ranura con objeto válido para marcar ruta.")
+        return
+    end
     local meta = ns.GetBiSItemMetadata(itemID)
     if not meta or not meta.name then
         ns.Print("Selecciona una ranura con objeto válido para marcar ruta.")
@@ -2738,7 +3143,11 @@ function MainUI:SelectTab(indexOrKey)
             SetColumnHeaders("Ranura", 80, 0, "Objeto BiS", 244, 81, "Estado", 138, 326, "RIGHT")
         end
         self:UpdateBiSView()
-    elseif currentKey == "secrets" then
+    else
+        self:UpdateSubtitle()
+    end
+
+    if currentKey == "secrets" then
         mainFrame.heroTitle:SetText("|cFFFFD100Secretos Recomendados|r")
         SetColumnHeaders("Secreto / Misión", 248, 0, "Zona", 112, 249, "Progreso", 102, 362, "RIGHT")
         self:UpdateSecretsView()
@@ -2812,14 +3221,16 @@ loadFrame:RegisterEvent("QUEST_LOG_UPDATE")
 loadFrame:RegisterEvent("QUEST_ACCEPTED")
 loadFrame:RegisterEvent("QUEST_TURNED_IN")
 loadFrame:RegisterEvent("PLAYER_LEVEL_UP")
-loadFrame:SetScript("OnEvent", function(self, event)
+loadFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
         MainUI:Init()
-    elseif event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "GET_ITEM_INFO_RECEIVED" then
+    elseif event == "GET_ITEM_INFO_RECEIVED" then
+        MainUI:OnPreloadItemReceived(arg1)
+    elseif event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" then
         local currentKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key
         if mainFrame and mainFrame:IsShown() then
             if currentKey == "bis" then
-                MainUI:UpdateBiSView()
+                MainUI:UpdateBiSItemStatuses()
             elseif currentKey == "secrets" then
                 MainUI:UpdateSecretsView()
             elseif currentKey == "prep" then

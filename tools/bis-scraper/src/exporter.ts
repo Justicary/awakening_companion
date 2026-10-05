@@ -256,14 +256,13 @@ if AwakeningData and AwakeningData.BiSLists then
                                 }
                             end
 
-                            -- Actualizar tiers "raid-p1" y "pre-raid" con datos en vivo
-                            for _, bracketKey in ipairs({"raid-p1", "pre-raid"}) do
-                                if cData.sets[bracketKey] then
-                                    if not cData.sets[bracketKey][sKey] then
-                                        cData.sets[bracketKey][sKey] = {}
-                                    end
-                                    cData.sets[bracketKey][sKey][uiSlot] = itemEntry.itemId
+                            -- Actualizar tier "raid-p1" (Raid Nivel 60 - MC & Onyxia) con los datos BiS de respaldo
+                            local bracketKey = "raid-p1"
+                            if cData.sets[bracketKey] then
+                                if not cData.sets[bracketKey][sKey] then
+                                    cData.sets[bracketKey][sKey] = {}
                                 end
+                                cData.sets[bracketKey][sKey][uiSlot] = itemEntry.itemId
                             end
 
                             -- Si es una spec que no existía en tiers inferiores, darle un gearSet base
