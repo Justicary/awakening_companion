@@ -18,6 +18,10 @@ local selectedFarmingBracket = "auto"
 local selectedFarmingItemType = nil
 local selectedFarmingItemData = nil
 local selectedMember = nil
+local selectedTravelFrom = nil -- id de nodo, "__player__" o nil
+local selectedTravelTo = nil
+local selectedTravelMode = "fastest"
+local currentTravelPlan = nil
 
 local views = {}
 local viewsByKey = {}
@@ -27,9 +31,10 @@ local colHeaderButtons = {}
 
 local TABS_CONFIG = {
     { key = "bis",     icon = "Interface\\Icons\\inv_helmet_06",        tooltip = "Best in Slot (BiS)" },
-    { key = "secrets", icon = "Interface\\Icons\\inv_misc_book_09",     tooltip = "Secretos Recomendados" },
+    { key = "secrets", icon = "Interface\\Icons\\inv_misc_book_09",     tooltip = "Guías & Secretos" },
     { key = "farming", icon = "Interface\\Icons\\inv_pick_02",          tooltip = "Profesiones" },
     { key = "prep",    icon = "Interface\\Icons\\inv_potion_92",        tooltip = "Preparación" },
+    { key = "travel",  icon = "Interface\\Icons\\inv_misc_map_01",      tooltip = "Planeador de Viaje" },
     { key = "guild",   icon = "Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\awakening_crest.tga", tooltip = "Hermandad Awakening (Roster)" },
 }
 
@@ -39,7 +44,7 @@ for idx, tab in ipairs(TABS_CONFIG) do
 end
 
 -- Constantes de geometría HUD Principal
-local FRAME_W, FRAME_H = 480, 495
+local FRAME_W, FRAME_H = 540, 495
 local DETAIL_H = 125
 
 -- =========================================================================
@@ -117,10 +122,11 @@ local function CreateColumnHeader(parent, index, title, width, xOffset)
     return btn
 end
 
-local function SetColumnHeaders(col1Title, col1W, col1X, col2Title, col2W, col2X, col3Title, col3W, col3X, col3Align)
+local function SetColumnHeaders(col1Title, col1W, col1X, col2Title, col2W, col2X, col3Title, col3W, col3X, col3Align, col2Align)
     if not colHeaderButtons[1] then return end
 
     if col1Title and col1W then
+        colHeaderButtons[1]:Show()
         colHeaderButtons[1]:SetWidth(col1W)
         colHeaderButtons[1]:ClearAllPoints()
         colHeaderButtons[1]:SetPoint("TOPLEFT", colHeaderButtons[1]:GetParent(), "TOPLEFT", col1X or 0, 0)
@@ -132,17 +138,24 @@ local function SetColumnHeaders(col1Title, col1W, col1X, col2Title, col2W, col2X
     end
 
     if col2Title and col2W then
+        colHeaderButtons[2]:Show()
         colHeaderButtons[2]:SetWidth(col2W)
         colHeaderButtons[2]:ClearAllPoints()
         colHeaderButtons[2]:SetPoint("TOPLEFT", colHeaderButtons[2]:GetParent(), "TOPLEFT", col2X or (col1W + 1), 0)
         colHeaderButtons[2].label:SetText(col2Title)
-        colHeaderButtons[2].label:SetJustifyH("LEFT")
+        colHeaderButtons[2].label:SetJustifyH(col2Align or "LEFT")
         colHeaderButtons[2].label:ClearAllPoints()
-        colHeaderButtons[2].label:SetPoint("LEFT", colHeaderButtons[2], "LEFT", 6, 0)
-        colHeaderButtons[2].label:SetPoint("RIGHT", colHeaderButtons[2], "RIGHT", -4, 0)
+        if col2Align == "RIGHT" then
+            colHeaderButtons[2].label:SetPoint("LEFT", colHeaderButtons[2], "LEFT", 4, 0)
+            colHeaderButtons[2].label:SetPoint("RIGHT", colHeaderButtons[2], "RIGHT", -30, 0)
+        else
+            colHeaderButtons[2].label:SetPoint("LEFT", colHeaderButtons[2], "LEFT", 6, 0)
+            colHeaderButtons[2].label:SetPoint("RIGHT", colHeaderButtons[2], "RIGHT", -4, 0)
+        end
     end
 
     if col3Title and col3W then
+        colHeaderButtons[3]:Show()
         colHeaderButtons[3]:SetWidth(col3W)
         colHeaderButtons[3]:ClearAllPoints()
         colHeaderButtons[3]:SetPoint("TOPLEFT", colHeaderButtons[3]:GetParent(), "TOPLEFT", col3X or ((col2X or 0) + col2W + 1), 0)
@@ -155,6 +168,10 @@ local function SetColumnHeaders(col1Title, col1W, col1X, col2Title, col2W, col2X
         else
             colHeaderButtons[3].label:SetPoint("LEFT", colHeaderButtons[3], "LEFT", 6, 0)
             colHeaderButtons[3].label:SetPoint("RIGHT", colHeaderButtons[3], "RIGHT", -4, 0)
+        end
+    else
+        if colHeaderButtons[3] then
+            colHeaderButtons[3]:Hide()
         end
     end
 end
@@ -236,6 +253,49 @@ function MainUI:Init()
     f.heroTitle:SetWordWrap(false)
     f.heroTitle:SetText("|cFFFFD1004 Secretos Clásicos|r")
 
+    -- Botón interactivo sobre el título principal para abrir diálogo de Habilidades al hacer doble clic
+    local heroTitleBtn = CreateFrame("Button", nil, f)
+    heroTitleBtn:SetPoint("TOPLEFT", f.heroTitle, "TOPLEFT", -2, 2)
+    heroTitleBtn:SetPoint("BOTTOMRIGHT", f.heroTitle, "BOTTOMRIGHT", 2, -2)
+    heroTitleBtn:EnableMouse(true)
+    heroTitleBtn:RegisterForClicks("LeftButtonUp")
+
+    local lastHeroClickTime = 0
+    heroTitleBtn:SetScript("OnClick", function(selfBtn, button)
+        local now = GetTime()
+        if (now - lastHeroClickTime) < 0.35 then
+            lastHeroClickTime = 0
+            if ns.SkillsUI then
+                ns.SkillsUI:Toggle()
+            end
+        else
+            lastHeroClickTime = now
+        end
+    end)
+    pcall(function()
+        heroTitleBtn:SetScript("OnDoubleClick", function()
+            if ns.SkillsUI then
+                ns.SkillsUI:Toggle()
+            end
+        end)
+    end)
+
+    heroTitleBtn:SetScript("OnEnter", function(selfBtn)
+        local pName = UnitName("player") or "Jugador"
+        local locClass = UnitClass("player") or "Aventurero"
+        local pLevel = UnitLevel("player") or 1
+        GameTooltip:SetOwner(selfBtn, "ANCHOR_BOTTOMLEFT", 0, -4)
+        GameTooltip:ClearLines()
+        GameTooltip:AddLine(string.format("|cFFFFD100%s · %s (%d)|r", pName, locClass, pLevel), 1, 0.82, 0)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cFF00FFCCDoble clic: Abrir Habilidades de Clase y Entrenador|r", 0.2, 1, 0.4, true)
+        GameTooltip:Show()
+    end)
+    heroTitleBtn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    f.heroTitleBtn = heroTitleBtn
+
     f.subStatus = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.subStatus:SetPoint("TOPLEFT", f.heroTitle, "BOTTOMLEFT", 0, -2)
     f.subStatus:SetPoint("RIGHT", f, "RIGHT", -36, 0)
@@ -283,9 +343,9 @@ function MainUI:Init()
     colHeaderFrame:SetHeight(20)
     f.colHeaderFrame = colHeaderFrame
 
-    colHeaderButtons[1] = CreateColumnHeader(colHeaderFrame, 1, "Misión", 240, 0)
-    colHeaderButtons[2] = CreateColumnHeader(colHeaderFrame, 2, "Zona", 110, 241)
-    colHeaderButtons[3] = CreateColumnHeader(colHeaderFrame, 3, "Estado", 113, 352)
+    colHeaderButtons[1] = CreateColumnHeader(colHeaderFrame, 1, "Misión", 290, 0)
+    colHeaderButtons[2] = CreateColumnHeader(colHeaderFrame, 2, "Zona", 125, 291)
+    colHeaderButtons[3] = CreateColumnHeader(colHeaderFrame, 3, "Estado", 108, 417)
 
     -- 4. Inset Inferior: Caja de Detalles (Detail Box estilo Olympus HD)
     local okDetail, detailBox = pcall(CreateFrame, "Frame", nil, f, "InsetFrameTemplate")
@@ -450,8 +510,12 @@ function MainUI:Init()
     btn2:SetPoint("LEFT", btn1, "RIGHT", 4, 0)
     bottomButtons[2] = btn2
 
-    local btn3 = CreateBlizzButton(f, "Alternar HUD", function()
-        if ns.GuideHUD then ns.GuideHUD:Toggle() end
+    local btn3 = CreateBlizzButton(f, "Habilidades", function()
+        if ns.SkillsUI then
+            ns.SkillsUI:Toggle()
+        elseif ns.GuideHUD then
+            ns.GuideHUD:Toggle()
+        end
     end)
     btn3:SetSize(btnW, 22)
     btn3:SetPoint("LEFT", btn2, "RIGHT", 4, 0)
@@ -614,6 +678,8 @@ function MainUI:BuildViews(container)
             self:BuildFarmingList(v)
         elseif t.key == "prep" then
             self:BuildRaidPrepList(v)
+        elseif t.key == "travel" then
+            self:BuildTravelView(v)
         elseif t.key == "guild" then
             self:BuildGuildList(v)
         end
@@ -810,7 +876,7 @@ function MainUI:BuildBiSList(parent)
 
         local itemLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         itemLabel:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-        itemLabel:SetPoint("RIGHT", row, "LEFT", 324, 0)
+        itemLabel:SetPoint("RIGHT", row, "LEFT", 376, 0)
         itemLabel:SetJustifyH("LEFT")
         itemLabel:SetWordWrap(false)
         itemLabel:SetText("Cargando...")
@@ -818,7 +884,7 @@ function MainUI:BuildBiSList(parent)
 
         -- Columna 3: Estado / Fuente
         local statusLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        statusLabel:SetPoint("LEFT", row, "LEFT", 326, 0)
+        statusLabel:SetPoint("LEFT", row, "LEFT", 378, 0)
         statusLabel:SetPoint("RIGHT", row, "RIGHT", -6, 0)
         statusLabel:SetJustifyH("RIGHT")
         statusLabel:SetWordWrap(false)
@@ -1037,9 +1103,9 @@ function MainUI:SetBiSMode(mode)
     end
 
     if selectedBiSMode == "enchants" then
-        SetColumnHeaders("Ranura", 80, 0, "Encantamiento Óptimo", 244, 81, "Fuente", 138, 326, "RIGHT")
+        SetColumnHeaders("Ranura", 80, 0, "Encantamiento Óptimo", 295, 81, "Fuente", 142, 378, "RIGHT")
     else
-        SetColumnHeaders("Ranura", 80, 0, "Objetos BiS", 244, 81, "Estado", 138, 326, "RIGHT")
+        SetColumnHeaders("Ranura", 80, 0, "Objetos BiS", 295, 81, "Estado", 142, 378, "RIGHT")
     end
 
     self:UpdateBiSView()
@@ -1105,16 +1171,19 @@ function MainUI:UpdateBiSView()
             view.specBtn:SetText(specDisplayName:gsub("%s*%(.-%)", ""))
         end
 
+        local playerName = UnitName("player") or "Jugador"
         if mainFrame and mainFrame.heroTitle then
             if selectedBiSBracket == "1-14" then
                 mainFrame.heroTitle:SetText(string.format(
-                    "|cFFFFD100Encantamientos %s (Nv. %d)|r · |cFF888888Sin encantamientos (Nv. 1-14)|r",
+                    "|cFFFFD100%s %s (%d)|r · |cFF888888Sin encantamientos (Nv. 1-14)|r",
+                    playerName,
                     localizedClass,
                     playerLevel
                 ))
             else
                 mainFrame.heroTitle:SetText(string.format(
-                    "|cFFFFD100Encantamientos %s (Nv. %d)|r · |cFF00FFCC%s (%s)|r",
+                    "|cFFFFD100%s %s (%d)|r · |cFF00FFCC%s (%s)|r",
+                    playerName,
                     localizedClass,
                     playerLevel,
                     specDisplayName,
@@ -1474,10 +1543,13 @@ function MainUI:RenderResolvedBiS(playerClass, bracketKey, specKey, playerLevel)
         end
     end
     local pct = total > 0 and math.floor((acquired / total) * 100) or 0
+    local playerName = UnitName("player") or "Jugador"
+    local localizedClass = UnitClass("player") or (classData and classData.name) or playerClass
     if mainFrame and mainFrame.heroTitle then
         mainFrame.heroTitle:SetText(string.format(
-            "|cFFFFD100BiS %s (Nv. %d)|r · |cFFFFFFFF%d/%d (%d%%)|r",
-            classData.name or playerClass,
+            "|cFFFFD100%s %s (%d)|r · |cFFFFFFFF%d/%d (%d%%)|r",
+            playerName,
+            localizedClass,
             playerLevel,
             acquired,
             total,
@@ -1967,7 +2039,7 @@ end
 -- VISTA 1: SECRETOS (LISTA TIPO TABLA CON HOVER Y DETALLES)
 -- =========================================================================
 local secretRowFrames = {}
-local secretsOrder = { "sleeping_bag", "library_books", "ancient_rune", "sunken_chest", "tanaris_pirates", "shadowforge_key" }
+local secretsOrder = { "sleeping_bag", "expert_cooking", "library_books", "ancient_rune", "sunken_chest", "tanaris_pirates", "shadowforge_key" }
 
 function MainUI:BuildSecretsList(parent)
     local scroll = CreateFrame("ScrollFrame", "AwakeningSecretsScroll", parent, "UIPanelScrollFrameTemplate")
@@ -1975,7 +2047,7 @@ function MainUI:BuildSecretsList(parent)
     scroll:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -20, 24)
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(440, 10)
+    content:SetSize(495, 10)
     scroll:SetScrollChild(content)
     parent.content = content
     parent.scroll = scroll
@@ -2007,7 +2079,7 @@ function MainUI:BuildSecretsList(parent)
         local secret = (ns.GetSecret and ns.GetSecret(key)) or (ns.Data.Secrets and ns.Data.Secrets[key])
         if secret then
             local row = CreateFrame("Button", nil, content, "BackdropTemplate")
-            row:SetSize(440, 20)
+            row:SetSize(495, 20)
             row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
 
             -- Resaltado hover sutil estilo Olympus
@@ -2033,16 +2105,16 @@ function MainUI:BuildSecretsList(parent)
 
             local title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             title:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-            title:SetPoint("RIGHT", row, "LEFT", 248, 0)
+            title:SetPoint("RIGHT", row, "LEFT", 260, 0)
             title:SetJustifyH("LEFT")
             title:SetWordWrap(false)
             title:SetText(secret.title)
             row.title = title
 
-            -- Columna 2: Zona
+            -- Columna 2: Zona y Distancia
             local zone = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            zone:SetPoint("LEFT", row, "LEFT", 250, 0)
-            zone:SetPoint("RIGHT", row, "LEFT", 360, 0)
+            zone:SetPoint("LEFT", row, "LEFT", 262, 0)
+            zone:SetPoint("RIGHT", row, "LEFT", 430, 0)
             zone:SetJustifyH("LEFT")
             zone:SetWordWrap(false)
             zone:SetText(secret.steps[1] and secret.steps[1].zoneName or "Varias")
@@ -2050,7 +2122,7 @@ function MainUI:BuildSecretsList(parent)
 
             -- Columna 3: Hitos / Progreso
             local steps = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            steps:SetPoint("LEFT", row, "LEFT", 362, 0)
+            steps:SetPoint("LEFT", row, "LEFT", 432, 0)
             steps:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             steps:SetJustifyH("RIGHT")
             steps:SetWordWrap(false)
@@ -2073,10 +2145,27 @@ function MainUI:BuildSecretsList(parent)
 
                 if sKey == "library_books" then
                     local _, pClass = UnitClass("player")
-                    if pClass == "ROGUE" or pClass == "HUNTER" or pClass == "DRUID" or pClass == "WARRIOR" then
-                        primaryIndex = 2 -- Amuleto de erudito (+4 Agi, +6 Agu)
+                    local curTier = s.currentTier or 1
+                    if curTier == 1 then
+                        if pClass == "ROGUE" or pClass == "HUNTER" or pClass == "DRUID" or pClass == "WARRIOR" then
+                            primaryIndex = 2 -- Amuleto de erudito (+2 Agi, +3 Agu)
+                        else
+                            primaryIndex = 1 -- Colgante de erudito (+3 Agu, +2 Esp)
+                        end
+                    elseif curTier == 2 then
+                        if pClass == "MAGE" or pClass == "WARLOCK" or pClass == "PRIEST" or pClass == "DRUID" or pClass == "PALADIN" or pClass == "SHAMAN" then
+                            primaryIndex = 4 -- Anillo de filántropo (+5 Int, +10 Hechizos)
+                        else
+                            primaryIndex = 3 -- Sortija del investigador de campo (+7 Agi, +7 Agu)
+                        end
                     else
-                        primaryIndex = 1 -- Colgante de erudito (+6 Agu, +4 Esp)
+                        if pClass == "HUNTER" or pClass == "ROGUE" or pClass == "WARRIOR" then
+                            primaryIndex = 5 -- Arco del buscador de la verdad (+7 Agi, +3 Agu)
+                        elseif pClass == "PALADIN" or pClass == "SHAMAN" or pClass == "WARRIOR" then
+                            primaryIndex = 6 -- Blasón de elucidación (+12 Esp, +7 Heal, Escudo)
+                        else
+                            primaryIndex = 7 -- Luz nocturna del investigador (+12 Agu, +7 Fuego, Mano izq)
+                        end
                     end
                 end
 
@@ -2115,7 +2204,7 @@ function MainUI:BuildSecretsList(parent)
                 -- Recompensas adicionales u opciones alternativas (estilo BiSTracker)
                 if rItems and #rItems > 1 then
                     GameTooltip:AddLine(" ")
-                    local altHeader = (sKey == "library_books") and "|cFFFFD100Opción alternativa de recompensa:|r" or "|cFFFFD100Otras recompensas al completar:|r"
+                    local altHeader = (sKey == "library_books") and "|cFFFFD100Opciones de recompensa y tiers:|r" or "|cFFFFD100Otras recompensas al completar:|r"
                     GameTooltip:AddLine(altHeader, 1, 0.82, 0)
 
                     for i, rItem in ipairs(rItems) do
@@ -2137,6 +2226,13 @@ function MainUI:BuildSecretsList(parent)
                     end
                 end
 
+                -- Bonus especial para Magos
+                if sKey == "library_books" and select(2, UnitClass("player")) == "MAGE" then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00CCFFHabilidad Extra de Mago: Estudiar (Study)|r", 0, 0.8, 1)
+                    GameTooltip:AddLine("   |cFF88DDFFAl entregar el 1er tomo aprendes 'Estudiar' (consume 1 Pluma ligera en una biblioteca para generar pergaminos diarios).|r", 0.7, 0.85, 1, true)
+                end
+
                 -- Metadatos de la misión al pie del tooltip (idéntico a la metodología BiS de Awakening)
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddDoubleLine("|cFFFFD100Secreto:|r " .. s.title, "|cFFFFD100Rango:|r |cFFFFFFFF" .. (s.level or "1-60") .. "|r")
@@ -2151,16 +2247,26 @@ function MainUI:BuildSecretsList(parent)
                     local zoneStr = curStep.zoneName or "Varias"
                     local coordStr = (curStep.x and curStep.y) and string.format("(%.1f, %.1f)", curStep.x, curStep.y) or ""
                     GameTooltip:AddDoubleLine("|cFFFFD100Hito actual:|r " .. curIdx .. "/" .. #s.steps, "|cFFFFD100Zona:|r " .. zoneStr .. " " .. coordStr)
+
+                    if curStep.uiMapID and curStep.x and curStep.y and ns.TravelPlanner and ns.TravelPlanner.FindNearestNode then
+                        local nearestId, hubDist, nNode = ns.TravelPlanner:FindNearestNode(curStep.uiMapID, curStep.x, curStep.y)
+                        if nNode then
+                            local hubFmt = hubDist and string.format("%s (a %s)", nNode.name, ns.FormatDistance(hubDist)) or nNode.name
+                            GameTooltip:AddDoubleLine("|cFFFFD100Punto de llegada:|r", "|cFF00FFCC" .. hubFmt .. "|r")
+                        end
+                    end
                 end
 
                 local stStr
                 if isDone then
-                    stStr = "|cFF00FF00Completado con éxito|r"
+                    stStr = "|cFF00FF00Completado con éxito (25/25 Libros)|r"
                 elseif sKey == "library_books" and s.collectedCount then
-                    if s.collectedCount >= 10 then
-                        stStr = "|cFF00FFCCListo para entregar (10/10)|r"
+                    local target = s.targetCount or 10
+                    local tier = s.currentTier or 1
+                    if s.collectedCount >= target then
+                        stStr = string.format("|cFF00FFCCListo para entregar Tier %d (%d/%d Tomos)|r", tier, s.collectedCount, target)
                     else
-                        stStr = string.format("|cFFFFD100%d de 10 Tomos despojados|r", s.collectedCount)
+                        stStr = string.format("|cFFFFD100Tier %d: %d de %d Tomos despojados|r", tier, s.collectedCount, target)
                     end
                 elseif isOld then
                     stStr = "|cFF888888Pendiente (Nivel superado)|r"
@@ -2182,9 +2288,13 @@ function MainUI:BuildSecretsList(parent)
             row:SetScript("OnDoubleClick", function()
                 MainUI:SelectSecret(key)
                 if ns.GuideHUD then
-                    local sData = (ns.GetSecret and ns.GetSecret(key)) or secret
-                    local curStep = (ns.GetSecretProgress and ns.GetSecretProgress(key)) or 1
-                    ns.GuideHUD:StartRoute(sData, key, curStep)
+                    local curMilestone = (ns.GetSecretProgress and ns.GetSecretProgress(key)) or 1
+                    local guideData, startStep = ns.GetDynamicSecretGuide and ns.GetDynamicSecretGuide(key, curMilestone)
+                    if not guideData then
+                        guideData = (ns.GetSecret and ns.GetSecret(key)) or secret
+                        startStep = curMilestone
+                    end
+                    ns.GuideHUD:StartRoute(guideData, key, startStep)
                 end
             end)
 
@@ -2231,6 +2341,7 @@ function MainUI:UpdateSecretsView()
     local parent = viewsByKey and viewsByKey["secrets"]
     local playerLevel = UnitLevel("player") or 1
     local showOld = (ns.db and ns.db.showOldSecrets) or false
+    local playerLoc = ns.GetPlayerLocation and ns.GetPlayerLocation()
 
     if parent and parent.chkOld then
         parent.chkOld:SetChecked(showOld)
@@ -2253,14 +2364,20 @@ function MainUI:UpdateSecretsView()
             local isTooLow = (playerLevel < minLvl)
             local isOld = (playerLevel > maxLvl)
             
-            -- Lógica de visibilidad progresiva por nivel:
-            -- 1. Si el nivel del jugador es inferior al mínimo requerido, el secreto NO aparece todavía.
-            -- 2. Si está en el rango de nivel actual, siempre aparece.
-            -- 3. Si el jugador superó el rango ("antiguo"):
-            --    - Se oculta por defecto para mantener limpia la lista de nivel actual.
-            --    - Aparece si la casilla "Mostrar secretos antiguos" está activada.
+            -- Lógica de visibilidad progresiva por nivel y requisitos de profesión:
             local shouldShow = false
-            if isTooLow then
+            if secret.autoHideCompleted and isDone then
+                -- Guías que deben desaparecer definitivamente al completarse (ej. libro de cocina ya aprendido)
+                shouldShow = false
+            elseif secret.requiredProfession then
+                if isDone then
+                    shouldShow = false
+                elseif isEligible == false then
+                    shouldShow = false
+                else
+                    shouldShow = true
+                end
+            elseif isTooLow then
                 shouldShow = false
             elseif not isOld then
                 shouldShow = true
@@ -2279,26 +2396,63 @@ function MainUI:UpdateSecretsView()
                 row:SetPoint("TOPLEFT", row:GetParent(), "TOPLEFT", 0, yOffset)
                 row:Show()
 
-                local activeStep = secret.steps[curStepIdx] or secret.steps[1]
+                local targetStep = (ns.GetSecretMilestoneTargetStep and ns.GetSecretMilestoneTargetStep(key, curStepIdx)) or (secret.steps and secret.steps[curStepIdx]) or secret.steps[1]
+                local activeStep = targetStep
                 row.icon:SetTexture(secret.icon or (activeStep and activeStep.icon) or "Interface\\Icons\\inv_misc_bag_07")
-                row.zone:SetText(activeStep and activeStep.zoneName or "Varias")
+
+                -- Cálculo eficiente de distancia al hito activo reutilizando las funciones de viaje
+                local zoneText = activeStep and activeStep.zoneName or "Varias"
+                if isDone then
+                    row.zone:SetText(zoneText)
+                elseif playerLoc and activeStep and activeStep.uiMapID and activeStep.x and activeStep.y then
+                    local distYards = ns.GetDistanceAndHeading and ns.GetDistanceAndHeading(playerLoc.mapID, playerLoc.x, playerLoc.y, activeStep.uiMapID, activeStep.x, activeStep.y)
+                    if distYards then
+                        if distYards < 150 and playerLoc.mapID == activeStep.uiMapID then
+                            row.zone:SetText(string.format("%s · |cFF00FF00Aquí (%s)|r", zoneText, ns.FormatDistance(distYards)))
+                        elseif distYards < 1500 then
+                            row.zone:SetText(string.format("%s · |cFF00FF00%s|r", zoneText, ns.FormatDistance(distYards)))
+                        else
+                            row.zone:SetText(string.format("%s · |cFFFFD100%s|r", zoneText, ns.FormatDistance(distYards)))
+                        end
+                    else
+                        local nearestId, _, nearestNode = ns.TravelPlanner and ns.TravelPlanner:FindNearestNode(activeStep.uiMapID, activeStep.x, activeStep.y)
+                        local contTag = nearestNode and nearestNode.continent
+                        if contTag and contTag ~= "" then
+                            row.zone:SetText(string.format("%s · |cFF88DDFF%s|r", zoneText, contTag))
+                        else
+                            row.zone:SetText(zoneText)
+                        end
+                    end
+                else
+                    row.zone:SetText(zoneText)
+                end
 
                 if isDone then
                     row.title:SetText(secret.title)
                     row.steps:SetText("|cFF00FF00[Listo]|r")
+                elseif key == "sleeping_bag" then
+                    row.title:SetText(secret.title)
+                    row.steps:SetText(string.format("|cFFFFD100Hito %d/7|r", curStepIdx))
+                elseif key == "expert_cooking" and secret.currentSkill then
+                    row.title:SetText(secret.title)
+                    row.steps:SetText(string.format("|cFFFFD100%d/150|r", secret.currentSkill))
                 elseif key == "library_books" and secret.collectedCount then
                     row.title:SetText(secret.title)
-                    if secret.collectedCount >= 10 then
-                        row.steps:SetText("|cFF00FFCCEntrega|r")
+                    local target = secret.targetCount or 10
+                    local tier = secret.currentTier or 1
+                    if isDone then
+                        row.steps:SetText("|cFF00FF00[Listo (25/25)]|r")
+                    elseif secret.collectedCount >= target then
+                        row.steps:SetText(string.format("|cFF00FFCCEntrega (T%d)|r", tier))
                     else
-                        row.steps:SetText(string.format("|cFFFFD100%d/10|r", secret.collectedCount))
+                        row.steps:SetText(string.format("|cFFFFD100%d/%d (T%d)|r", secret.collectedCount, target, tier))
                     end
                 elseif isOld then
                     row.title:SetText(string.format("|cFFBBBBBB%s|r", secret.title))
-                    row.steps:SetText(string.format("|cFF888888%d/%d|r", curStepIdx, #secret.steps))
+                    row.steps:SetText(string.format("|cFF888888Hito %d/%d|r", curStepIdx, #secret.steps))
                 elseif #secret.steps > 1 then
                     row.title:SetText(secret.title)
-                    row.steps:SetText(string.format("|cFFFFD100%d/%d|r", curStepIdx, #secret.steps))
+                    row.steps:SetText(string.format("|cFFFFD100Hito %d/%d|r", curStepIdx, #secret.steps))
                 else
                     row.title:SetText(secret.title)
                     row.steps:SetText(string.format("%d", #secret.steps))
@@ -2352,19 +2506,28 @@ function MainUI:SelectSecret(key)
     local maxLvl = secret.maxLevel or 60
     local isOld = playerLevel > maxLvl
     local curStepIdx = (ns.GetSecretProgress and ns.GetSecretProgress(key)) or (secret.currentStep or 1)
-    local curStep = secret.steps and (secret.steps[curStepIdx] or secret.steps[1])
+    local curStep = (ns.GetSecretMilestoneTargetStep and ns.GetSecretMilestoneTargetStep(key, curStepIdx)) or (secret.steps and (secret.steps[curStepIdx] or secret.steps[1]))
     local isDone = secret.isCompleted
+    local playerLoc = ns.GetPlayerLocation and ns.GetPlayerLocation()
 
     -- Actualizar Caja de Detalles inferior (Estilo Olympus)
     if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
         local stBadge
         if isDone then
             stBadge = "|cFF00FF00[Completado]|r"
+        elseif key == "sleeping_bag" then
+            stBadge = string.format("|cFFFFD100[Hito %d de 7]|r", curStepIdx)
+        elseif key == "expert_cooking" and secret.currentSkill then
+            stBadge = string.format("|cFFFFD100[Cocina %d de 150]|r", secret.currentSkill)
         elseif key == "library_books" and secret.collectedCount then
-            if secret.collectedCount >= 10 then
-                stBadge = "|cFF00FFCC[Listo para Entregar]|r"
+            local target = secret.targetCount or 10
+            local tier = secret.currentTier or 1
+            if isDone then
+                stBadge = "|cFF00FF00[Completado 25/25]|r"
+            elseif secret.collectedCount >= target then
+                stBadge = string.format("|cFF00FFCC[Listo para Entregar · Tier %d (%d/%d)]|r", tier, secret.collectedCount, target)
             else
-                stBadge = string.format("|cFFFFD100[%d de 10 Tomos Recolectados]|r", secret.collectedCount)
+                stBadge = string.format("|cFFFFD100[Tier %d · %d de %d Tomos Recolectados]|r", tier, secret.collectedCount, target)
             end
         elseif isOld then
             stBadge = string.format("|cFF888888[Hito %d/%d · Nivel Superado]|r", curStepIdx, #secret.steps)
@@ -2389,6 +2552,47 @@ function MainUI:SelectSecret(key)
         local locStr = curStep and string.format("%s (%.1f, %.1f)", curStep.zoneName or "Mundo", curStep.x or 0, curStep.y or 0) or "Varias"
         local lvlStr = string.format("%s (Tu nivel: %d)", secret.level or (minLvl .. " - " .. maxLvl), playerLevel)
 
+        -- -----------------------------------------------------------------
+        -- INTEGRACIÓN AVANZADA CON TRAVEL PLANNER (PUNTO DE LLEGADA Y TIEMPO)
+        -- -----------------------------------------------------------------
+        local hubInfoStr = nil
+        local travelEtaStr = nil
+
+        if curStep and curStep.uiMapID and curStep.x and curStep.y and ns.TravelPlanner then
+            local nearestId, hubDistYards, nearestNode = ns.TravelPlanner:FindNearestNode(curStep.uiMapID, curStep.x, curStep.y)
+            if nearestNode then
+                local typeLabels = {
+                    flightmaster = "Vuelo",
+                    boat = "Puerto / Barco",
+                    tram = "Tranvía",
+                    zeppelin = "Zepelín",
+                    walk = "Camino",
+                }
+                local tLabel = typeLabels[nearestNode.type] or "Transporte"
+                local distSuffix = hubDistYards and string.format(" · a %s del hito", ns.FormatDistance(hubDistYards)) or ""
+                hubInfoStr = string.format("|cFFFFD100Punto de llegada:|r %s (%s%s)", nearestNode.name, tLabel, distSuffix)
+            end
+
+            if playerLoc and not isDone then
+                local directDist = ns.GetDistanceAndHeading and ns.GetDistanceAndHeading(playerLoc.mapID, playerLoc.x, playerLoc.y, curStep.uiMapID, curStep.x, curStep.y)
+                if directDist and directDist < 600 and playerLoc.mapID == curStep.uiMapID then
+                    travelEtaStr = string.format("|cFF00FF00Cerca del objetivo:|r A pie: %s (~%.1f min)", ns.FormatDistance(directDist), (directDist / 7) / 60)
+                else
+                    local plan = ns.TravelPlanner:CalculateRoute("__player__", curStep, { routingMode = "fastest" })
+                    if not plan or not plan.success then
+                        if nearestId then
+                            plan = ns.TravelPlanner:CalculateRoute("__player__", nearestId, { routingMode = "fastest" })
+                        end
+                    end
+                    if plan and plan.success then
+                        local legsDesc = (#plan.legs == 1) and "1 etapa directa" or string.format("%d etapas", #plan.legs)
+                        local hsNote = (plan.hearthstone and plan.hearthstone.isBeneficial) and " |cFF00FFFF(Atajo con Piedra de Hogar)|r" or ""
+                        travelEtaStr = string.format("Viaje estimado: |cFF00FF00~%.1f min|r (%s)%s", plan.totalMinutes or 0, legsDesc, hsNote)
+                    end
+                end
+            end
+        end
+
         local lines = {}
         if not secret.rewardItems or #secret.rewardItems == 0 then
             if secret.reward then
@@ -2396,8 +2600,23 @@ function MainUI:SelectSecret(key)
             end
         end
         table.insert(lines, string.format("|cFFFFFFFFUbicación:|r %s   ·   |cFFFFFFFFRango:|r %s", locStr, lvlStr))
+
+        if hubInfoStr then
+            if travelEtaStr then
+                table.insert(lines, hubInfoStr .. "   ·   " .. travelEtaStr)
+            else
+                table.insert(lines, hubInfoStr)
+            end
+        elseif travelEtaStr then
+            table.insert(lines, travelEtaStr)
+        end
+
         if stepDesc and stepDesc ~= "" then
             table.insert(lines, stepDesc)
+        end
+
+        if not isDone then
+            table.insert(lines, "|cFF888888Pulsa '|cFFFFD100Iniciar Ruta|r' para el compás HUD, o '|cFFFFD100Planificar Viaje|r' para ver vuelos y barcos.|r")
         end
 
         mainFrame.detailText:SetText(table.concat(lines, "\n"))
@@ -2685,20 +2904,20 @@ function MainUI:UpdateFarmingView()
 
             local title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             title:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-            title:SetPoint("RIGHT", row, "LEFT", 175, 0)
+            title:SetPoint("RIGHT", row, "LEFT", 210, 0)
             title:SetJustifyH("LEFT")
             title:SetWordWrap(false)
             row.title = title
 
             local prof = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            prof:SetPoint("LEFT", row, "LEFT", 178, 0)
-            prof:SetPoint("RIGHT", row, "LEFT", 320, 0)
+            prof:SetPoint("LEFT", row, "LEFT", 212, 0)
+            prof:SetPoint("RIGHT", row, "LEFT", 372, 0)
             prof:SetJustifyH("LEFT")
             prof:SetWordWrap(false)
             row.prof = prof
 
             local req = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            req:SetPoint("LEFT", row, "LEFT", 324, 0)
+            req:SetPoint("LEFT", row, "LEFT", 374, 0)
             req:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             req:SetJustifyH("RIGHT")
             req:SetWordWrap(false)
@@ -2710,7 +2929,7 @@ function MainUI:UpdateFarmingView()
         row.entry = entry
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
-        row:SetSize(440, 20)
+        row:SetSize(490, 20)
         row:Show()
 
         if entry.type == "header" then
@@ -2731,12 +2950,12 @@ function MainUI:UpdateFarmingView()
             row.icon:Show()
             row.title:ClearAllPoints()
             row.title:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
-            row.title:SetPoint("RIGHT", row, "LEFT", 175, 0)
+            row.title:SetPoint("RIGHT", row, "LEFT", 210, 0)
             row.prof:ClearAllPoints()
-            row.prof:SetPoint("LEFT", row, "LEFT", 178, 0)
-            row.prof:SetPoint("RIGHT", row, "LEFT", 320, 0)
+            row.prof:SetPoint("LEFT", row, "LEFT", 212, 0)
+            row.prof:SetPoint("RIGHT", row, "LEFT", 372, 0)
             row.req:ClearAllPoints()
-            row.req:SetPoint("LEFT", row, "LEFT", 324, 0)
+            row.req:SetPoint("LEFT", row, "LEFT", 374, 0)
             row.req:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             row:EnableMouse(true)
             row:SetHeight(20)
@@ -2981,6 +3200,747 @@ function MainUI:BuildRaidPrepList(parent)
     end
 end
 
+-- =========================================================================
+-- VISTA: PLANEADOR DE VIAJE (INSPIRADO EN CHAIRFACE'S CASINO)
+-- =========================================================================
+local travelPicker
+
+local function EnsureTravelPicker()
+    if travelPicker then return travelPicker end
+
+    local popup = CreateFrame("Frame", "AwakeningTravelPicker", UIParent, "BackdropTemplate")
+    popup:SetSize(300, 360)
+    popup:SetFrameStrata("DIALOG")
+    popup:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 2,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    popup:SetBackdropColor(0.04, 0.05, 0.07, 0.98)
+    popup:SetBackdropBorderColor(0.7, 0.55, 0.2, 1)
+    popup:Hide()
+    popup:EnableMouse(true)
+
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", popup, "TOPLEFT", 10, -10)
+    title:SetText("|cFFFFD100Seleccionar Destino|r")
+    popup.title = title
+
+    local btnClose = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+    btnClose:SetSize(18, 18)
+    btnClose:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -4, -4)
+    btnClose:SetScript("OnClick", function() popup:Hide() end)
+
+    -- Caja de búsqueda en tiempo real
+    local searchBox = CreateFrame("EditBox", nil, popup, "BackdropTemplate")
+    searchBox:SetSize(276, 22)
+    searchBox:SetPoint("TOPLEFT", popup, "TOPLEFT", 12, -32)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetFontObject("GameFontHighlightSmall")
+    searchBox:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    searchBox:SetBackdropColor(0.08, 0.09, 0.12, 0.9)
+    searchBox:SetBackdropBorderColor(0.35, 0.45, 0.55, 0.8)
+    searchBox:SetTextInsets(6, 6, 0, 0)
+    popup.searchBox = searchBox
+
+    local searchPlaceholder = searchBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    searchPlaceholder:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
+    searchPlaceholder:SetText("Buscar ciudad o zona...")
+    popup.searchPlaceholder = searchPlaceholder
+
+    searchBox:SetScript("OnTextChanged", function(selfBox)
+        local text = selfBox:GetText()
+        if text and text ~= "" then
+            searchPlaceholder:Hide()
+        else
+            searchPlaceholder:Show()
+        end
+        if popup.FilterRows then popup:FilterRows(text) end
+    end)
+    searchBox:SetScript("OnEscapePressed", function(selfBox)
+        selfBox:ClearFocus()
+        popup:Hide()
+    end)
+
+    local scroll = CreateFrame("ScrollFrame", "AwakeningTravelPickerScroll", popup, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", popup, "TOPLEFT", 8, -60)
+    scroll:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -26, 8)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(250, 10)
+    scroll:SetScrollChild(content)
+
+    popup.scroll = scroll
+    popup.content = content
+    popup.rows = {}
+    popup.allItems = {}
+
+    function popup:FilterRows(filterText)
+        local norm = filterText and (tostring(filterText):lower():gsub("^%s+", ""):gsub("%s+$", "")) or ""
+        for _, row in ipairs(popup.rows) do row:Hide() end
+
+        local yOffset = 0
+        local visibleIndex = 0
+
+        for _, item in ipairs(popup.allItems) do
+            local match = true
+            if norm ~= "" and not item.isHeader then
+                local nName = item.text:lower()
+                local nZone = (item.zone or ""):lower()
+                match = (nName:find(norm, 1, true) or nZone:find(norm, 1, true))
+            end
+
+            if match then
+                visibleIndex = visibleIndex + 1
+                local row = popup.rows[visibleIndex]
+                if not row then
+                    row = CreateFrame("Button", nil, popup.content, "BackdropTemplate")
+                    row:SetHeight(20)
+                    row:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+                    row:SetBackdropColor(0, 0, 0, 0)
+
+                    local hl = row:CreateTexture(nil, "HIGHLIGHT")
+                    hl:SetAllPoints(row)
+                    hl:SetColorTexture(1, 1, 1, 0.08)
+
+                    local icon = row:CreateTexture(nil, "ARTWORK")
+                    icon:SetSize(14, 14)
+                    icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    row.icon = icon
+
+                    local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+                    label:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+                    label:SetJustifyH("LEFT")
+                    row.label = label
+
+                    popup.rows[visibleIndex] = row
+                end
+
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", popup.content, "TOPLEFT", 0, -yOffset)
+                row:SetPoint("RIGHT", popup.content, "RIGHT", 0, 0)
+
+                if item.isHeader then
+                    row.icon:Hide()
+                    row.label:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    row.label:SetText("|cFFAAAAAA" .. item.text .. "|r")
+                    row:EnableMouse(false)
+                else
+                    row.icon:Show()
+                    row.icon:SetTexture(item.icon or "Interface\\Icons\\inv_misc_map_01")
+                    row.label:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+                    row.label:SetText(item.text)
+                    row:EnableMouse(true)
+                    row:SetScript("OnClick", function()
+                        popup:Hide()
+                        if popup.onPick then popup.onPick(item.id, item.rawName) end
+                    end)
+                end
+
+                row:Show()
+                yOffset = yOffset + 20
+            end
+        end
+
+        popup.content:SetHeight(math.max(10, yOffset))
+    end
+
+    travelPicker = popup
+    return popup
+end
+
+local function BuildTravelZoneMenu(anchorBtn, onPick, includePlayerOption)
+    local travel = ns.Data and ns.Data.Travel
+    if not travel or not travel.nodes then return end
+
+    local popup = EnsureTravelPicker()
+    popup.onPick = onPick
+    popup.allItems = {}
+    if popup.searchBox then
+        popup.searchBox:SetText("")
+        popup.searchBox:SetFocus()
+    end
+
+    if includePlayerOption then
+        table.insert(popup.allItems, {
+            id = "__player__",
+            rawName = "Mi ubicación actual",
+            text = "|cFF00FFCCUsar mi ubicación actual|r",
+            icon = "Interface\\Icons\\inv_misc_map_01",
+            isHeader = false,
+        })
+    end
+
+    -- Opción de Marcador del mapa (Pin / TomTom) - Inspirado en WaypointService de Mapzeroth
+    local hasWaypoint = false
+    if C_Map and C_Map.GetUserWaypoint and C_Map.GetUserWaypoint() then
+        hasWaypoint = true
+    elseif _G.TomTom and _G.TomTom.waypoints and next(_G.TomTom.waypoints) then
+        hasWaypoint = true
+    end
+
+    table.insert(popup.allItems, {
+        id = "__waypoint__",
+        rawName = "Marcador del mapa (Pin)",
+        text = hasWaypoint and "|cFFFFD100Marcador del mapa (Pin activo)|r" or "|cFF888888Marcador del mapa (Sin pin activo)|r",
+        icon = "Interface\\Icons\\inv_misc_map_01",
+        isHeader = false,
+    })
+
+    -- Opción de Piedra de Hogar
+    local hs = AwakeningDB and AwakeningDB.hearthstone
+    local hsBind = (hs and hs.locationName) or (GetBindLocation and GetBindLocation())
+    if hsBind and hsBind ~= "" then
+        table.insert(popup.allItems, {
+            id = "__hearthstone__",
+            rawName = "Piedra de Hogar: " .. hsBind,
+            text = string.format("|cFF00FF00Piedra de Hogar: %s|r", hsBind),
+            icon = "Interface\\Icons\\inv_misc_rune_01",
+            isHeader = false,
+        })
+    end
+
+    local byContinent = {}
+    local continentOrder = {}
+    for id, node in pairs(travel.nodes) do
+        local cont = node.continent or "Otros"
+        if not byContinent[cont] then
+            byContinent[cont] = {}
+            table.insert(continentOrder, cont)
+        end
+        table.insert(byContinent[cont], { id = id, node = node })
+    end
+    table.sort(continentOrder)
+    for _, cont in ipairs(continentOrder) do
+        table.sort(byContinent[cont], function(a, b) return a.node.name < b.node.name end)
+    end
+
+    for _, cont in ipairs(continentOrder) do
+        table.insert(popup.allItems, { text = "--- " .. cont .. " ---", isHeader = true })
+        for _, entry in ipairs(byContinent[cont]) do
+            local modeIcon = (entry.node.type == "tram") and "Interface\\Icons\\inv_misc_gear_01"
+                or (entry.node.type == "boat") and "Interface\\Icons\\inv_misc_map_01"
+                or (entry.node.type == "zeppelin") and "Interface\\Icons\\inv_misc_bag_08"
+                or "Interface\\Icons\\ability_mount_ridinghorse"
+
+            table.insert(popup.allItems, {
+                id = entry.id,
+                rawName = entry.node.name,
+                zone = entry.node.zoneName,
+                text = string.format("%s |cFF888888(%s)|r", entry.node.name, entry.node.zoneName),
+                icon = modeIcon,
+                isHeader = false,
+            })
+        end
+    end
+
+    popup:FilterRows("")
+    popup:ClearAllPoints()
+    popup:SetPoint("TOPLEFT", anchorBtn, "BOTTOMLEFT", 0, -4)
+    popup:Show()
+end
+
+-- =========================================================================
+-- CONSTRUCCIÓN DE LA VISTA COMPLETA DE VIAJES (Estilo Casino)
+-- =========================================================================
+function MainUI:BuildTravelView(parent)
+    -- Contenedor izquierdo: Selectores, toggles y accesos rápidos (230px)
+    local leftCol = CreateFrame("Frame", nil, parent)
+    leftCol:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
+    leftCol:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 2, 2)
+    leftCol:SetWidth(230)
+    parent.leftCol = leftCol
+
+    -- Contenedor derecho: Previsualización interactiva de etapas/itinerario (288px)
+    local rightCol = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    rightCol:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -2)
+    rightCol:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -2, 2)
+    rightCol:SetWidth(288)
+    rightCol:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    rightCol:SetBackdropColor(0.03, 0.04, 0.06, 0.9)
+    rightCol:SetBackdropBorderColor(0.25, 0.35, 0.45, 0.8)
+    parent.rightCol = rightCol
+
+    -- 1. Botón de Origen (Icono nativo de mapa en lugar de emoji)
+    local btnFrom = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
+    btnFrom:SetSize(198, 26)
+    btnFrom:SetPoint("TOPLEFT", leftCol, "TOPLEFT", 0, -4)
+    btnFrom:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnFrom:SetBackdropColor(0.08, 0.1, 0.14, 0.95)
+    btnFrom:SetBackdropBorderColor(0.3, 0.5, 0.7, 0.9)
+
+    local btnFromText = btnFrom:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    btnFromText:SetPoint("LEFT", btnFrom, "LEFT", 6, 0)
+    btnFromText:SetPoint("RIGHT", btnFrom, "RIGHT", -6, 0)
+    btnFromText:SetJustifyH("LEFT")
+    btnFromText:SetWordWrap(false)
+    btnFromText:SetText("|TInterface\\Icons\\inv_misc_map_01:13:13:0:0|t |cFF00FFCCOrigen: Mi ubicación|r")
+    btnFrom.text = btnFromText
+    parent.travelFromBtn = btnFrom
+
+    -- Botón de intercambio de origen/destino [<->]
+    local btnSwap = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
+    btnSwap:SetSize(26, 26)
+    btnSwap:SetPoint("LEFT", btnFrom, "RIGHT", 4, 0)
+    btnSwap:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnSwap:SetBackdropColor(0.12, 0.12, 0.16, 0.9)
+    btnSwap:SetBackdropBorderColor(0.5, 0.5, 0.6, 0.8)
+    local swapText = btnSwap:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    swapText:SetPoint("CENTER")
+    swapText:SetText("<->")
+    btnSwap:SetScript("OnClick", function()
+        local tmp = selectedTravelFrom
+        selectedTravelFrom = selectedTravelTo
+        selectedTravelTo = tmp
+        MainUI:UpdateTravelView()
+    end)
+    btnSwap:SetScript("OnEnter", function(s)
+        s:SetBackdropBorderColor(1, 0.84, 0, 1)
+        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Invertir Origen y Destino")
+        GameTooltip:Show()
+    end)
+    btnSwap:SetScript("OnLeave", function(s)
+        s:SetBackdropBorderColor(0.5, 0.5, 0.6, 0.8)
+        GameTooltip:Hide()
+    end)
+
+    -- 2. Botón de Destino (Icono nativo de estandarte en lugar de emoji)
+    local btnTo = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
+    btnTo:SetSize(228, 26)
+    btnTo:SetPoint("TOPLEFT", btnFrom, "BOTTOMLEFT", 0, -6)
+    btnTo:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnTo:SetBackdropColor(0.08, 0.1, 0.14, 0.95)
+    btnTo:SetBackdropBorderColor(0.7, 0.55, 0.2, 0.9)
+
+    local btnToText = btnTo:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    btnToText:SetPoint("LEFT", btnTo, "LEFT", 6, 0)
+    btnToText:SetPoint("RIGHT", btnTo, "RIGHT", -6, 0)
+    btnToText:SetJustifyH("LEFT")
+    btnToText:SetWordWrap(false)
+    btnToText:SetText("|TInterface\\Icons\\inv_banner_03:13:13:0:0|t |cFFFFD100Destino: (ninguno)|r")
+    btnTo.text = btnToText
+    parent.travelToBtn = btnTo
+
+    btnFrom:SetScript("OnClick", function(selfBtn)
+        BuildTravelZoneMenu(selfBtn, function(id, label)
+            selectedTravelFrom = id
+            MainUI:UpdateTravelView()
+        end, true)
+    end)
+
+    btnTo:SetScript("OnClick", function(selfBtn)
+        BuildTravelZoneMenu(selfBtn, function(id, label)
+            selectedTravelTo = id
+            MainUI:UpdateTravelView()
+        end, false)
+    end)
+
+    -- 3. Selector de Modo Segmentado (Iconos nativos sprint y escudo)
+    local modeLabel = leftCol:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    modeLabel:SetPoint("TOPLEFT", btnTo, "BOTTOMLEFT", 2, -8)
+    modeLabel:SetText("Prioridad de ruta:")
+
+    local function makeModeBtn(text, x)
+        local b = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
+        b:SetSize(112, 22)
+        b:SetPoint("TOPLEFT", leftCol, "TOPLEFT", x, -92)
+        b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        b.text:SetPoint("CENTER")
+        b.text:SetText(text)
+        return b
+    end
+
+    local fastBtn = makeModeBtn("|TInterface\\Icons\\ability_rogue_sprint:13:13:0:0|t Rápido", 0)
+    local safeBtn = makeModeBtn("|TInterface\\Icons\\inv_shield_04:13:13:0:0|t Seguro", 116)
+
+    local function paintTravelMode()
+        local onBg   = { 0.15, 0.35, 0.2, 1 }
+        local onBdr  = { 0.4, 0.9, 0.5, 1 }
+        local offBg  = { 0.08, 0.08, 0.1, 0.9 }
+        local offBdr = { 0.25, 0.25, 0.3, 0.8 }
+
+        if selectedTravelMode == "fastest" then
+            fastBtn:SetBackdropColor(unpack(onBg))
+            fastBtn:SetBackdropBorderColor(unpack(onBdr))
+            safeBtn:SetBackdropColor(unpack(offBg))
+            safeBtn:SetBackdropBorderColor(unpack(offBdr))
+        else
+            safeBtn:SetBackdropColor(unpack(onBg))
+            safeBtn:SetBackdropBorderColor(unpack(onBdr))
+            fastBtn:SetBackdropColor(unpack(offBg))
+            fastBtn:SetBackdropBorderColor(unpack(offBdr))
+        end
+    end
+
+    fastBtn:SetScript("OnClick", function()
+        selectedTravelMode = "fastest"
+        paintTravelMode()
+        MainUI:UpdateTravelView()
+    end)
+    safeBtn:SetScript("OnClick", function()
+        selectedTravelMode = "safest"
+        paintTravelMode()
+        MainUI:UpdateTravelView()
+    end)
+    paintTravelMode()
+
+    -- 4. Rejilla de Destinos Rápidos (Grid de Capitales ancho: 74px por botón)
+    local hubsTitle = leftCol:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hubsTitle:SetPoint("TOPLEFT", leftCol, "TOPLEFT", 2, -122)
+    hubsTitle:SetText("|cFFFFD100Destinos Rápidos:|r")
+
+    local hubs = ns.TravelPlanner and ns.TravelPlanner:GetPopularDestinations() or {}
+    leftCol.hubButtons = {}
+
+    for i = 1, 6 do
+        local hub = hubs[i]
+        local row = math.floor((i - 1) / 2)
+        local col = (i - 1) % 2
+
+        local hBtn = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
+        hBtn:SetSize(112, 26)
+        hBtn:SetPoint("TOPLEFT", leftCol, "TOPLEFT", col * 116, -138 - (row * 30))
+        hBtn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        hBtn:SetBackdropColor(0.08, 0.08, 0.12, 0.9)
+        hBtn:SetBackdropBorderColor(0.3, 0.4, 0.5, 0.8)
+
+        local hIcon = hBtn:CreateTexture(nil, "ARTWORK")
+        hIcon:SetSize(18, 18)
+        hIcon:SetPoint("LEFT", hBtn, "LEFT", 4, 0)
+        if hIcon.SetMask then
+            hIcon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        end
+        hBtn.icon = hIcon
+
+        local hLabel = hBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        hLabel:SetPoint("LEFT", hIcon, "RIGHT", 4, 0)
+        hLabel:SetPoint("RIGHT", hBtn, "RIGHT", -4, 0)
+        hLabel:SetJustifyH("LEFT")
+        hLabel:SetWordWrap(false)
+        hBtn.label = hLabel
+
+        if hub then
+            hIcon:SetTexture(hub.icon or "Interface\\Icons\\inv_misc_map_01")
+            hLabel:SetText(hub.name)
+            hBtn:SetScript("OnEnter", function(s)
+                s:SetBackdropColor(0.15, 0.25, 0.18, 1)
+                s:SetBackdropBorderColor(0.4, 0.9, 0.5, 1)
+                GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(hub.name, 1, 0.84, 0)
+                GameTooltip:AddLine(hub.continent or "", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cFF00FF00Clic Izquierdo:|r Fijar como Destino", 0.9, 0.9, 0.9)
+                GameTooltip:AddLine("|cFF00CCFFClic Derecho:|r Fijar como Origen", 0.9, 0.9, 0.9)
+                GameTooltip:Show()
+            end)
+            hBtn:SetScript("OnLeave", function(s)
+                s:SetBackdropColor(0.08, 0.08, 0.12, 0.9)
+                s:SetBackdropBorderColor(0.3, 0.4, 0.5, 0.8)
+                GameTooltip:Hide()
+            end)
+            hBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            hBtn:SetScript("OnClick", function(_, btn)
+                if btn == "RightButton" then
+                    selectedTravelFrom = hub.id
+                else
+                    selectedTravelTo = hub.id
+                end
+                MainUI:UpdateTravelView()
+            end)
+        else
+            hBtn:Hide()
+        end
+
+        leftCol.hubButtons[i] = hBtn
+    end
+
+    -- 5. Columna Derecha: Tarjeta de Itinerario / Etapas
+    local rightHeader = rightCol:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    rightHeader:SetPoint("TOPLEFT", rightCol, "TOPLEFT", 8, -6)
+    rightHeader:SetText("|cFFFFD100Itinerario en Tiempo Real|r")
+
+    local legScroll = CreateFrame("ScrollFrame", "AwakeningTravelLegScroll", rightCol, "UIPanelScrollFrameTemplate")
+    legScroll:SetPoint("TOPLEFT", rightCol, "TOPLEFT", 6, -24)
+    legScroll:SetPoint("BOTTOMRIGHT", rightCol, "BOTTOMRIGHT", -22, 6)
+
+    local legContent = CreateFrame("Frame", nil, legScroll)
+    legContent:SetSize(260, 10)
+    legScroll:SetScrollChild(legContent)
+    rightCol.legScroll = legScroll
+    rightCol.legContent = legContent
+    rightCol.legRows = {}
+
+    -- Mensaje de estado cuando no hay ruta calculada
+    local emptyMsg = rightCol:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    emptyMsg:SetPoint("CENTER", rightCol, "CENTER", 0, -10)
+    emptyMsg:SetWidth(250)
+    emptyMsg:SetJustifyH("CENTER")
+    emptyMsg:SetText("Elige origen y destino para visualizar los vuelos, barcos, tranvía y tiempos de viaje.")
+    rightCol.emptyMsg = emptyMsg
+end
+
+-- =========================================================================
+-- ACTUALIZACIÓN DINÁMICA DE LA VISTA DE VIAJE (Tarjeta de Embarque)
+-- =========================================================================
+function MainUI:UpdateTravelView()
+    local v = viewsByKey["travel"]
+    if not v or not v.leftCol then return end
+
+    local travel = ns.Data and ns.Data.Travel
+    local fromNode = travel and travel.nodes and (type(selectedTravelFrom) == "string" and travel.nodes[selectedTravelFrom] or nil)
+    local toNode = travel and travel.nodes and (type(selectedTravelTo) == "string" and travel.nodes[selectedTravelTo] or nil)
+
+    -- 1. Actualizar textos de los botones de origen y destino con iconos nativos (cero emojis)
+    if v.travelFromBtn and v.travelFromBtn.text then
+        if selectedTravelFrom == "__player__" or not selectedTravelFrom then
+            v.travelFromBtn.text:SetText("|TInterface\\Icons\\inv_misc_map_01:13:13:0:0|t |cFF00FFCCOrigen: Mi ubicación|r")
+            selectedTravelFrom = "__player__"
+        elseif selectedTravelFrom == "__waypoint__" then
+            v.travelFromBtn.text:SetText("|TInterface\\Icons\\inv_misc_map_01:13:13:0:0|t |cFFFFD100Origen: Marcador (Pin)|r")
+        elseif selectedTravelFrom == "__hearthstone__" then
+            v.travelFromBtn.text:SetText("|TInterface\\Icons\\inv_misc_rune_01:13:13:0:0|t |cFF00FF00Origen: Piedra de Hogar|r")
+        elseif fromNode then
+            v.travelFromBtn.text:SetText(string.format("|TInterface\\Icons\\inv_misc_map_01:13:13:0:0|t |cFF00FFCCOrigen: %s|r", fromNode.name))
+        else
+            v.travelFromBtn.text:SetText("|TInterface\\Icons\\inv_misc_map_01:13:13:0:0|t |cFF888888Origen: (ninguno)|r")
+        end
+    end
+
+    if v.travelToBtn and v.travelToBtn.text then
+        if type(selectedTravelTo) == "table" then
+            local label = selectedTravelTo.name or selectedTravelTo.title or "Hito de Secreto"
+            v.travelToBtn.text:SetText(string.format("|TInterface\\Icons\\inv_misc_book_09:13:13:0:0|t |cFFFFD100Destino: %s|r", label))
+        elseif selectedTravelTo == "__waypoint__" then
+            v.travelToBtn.text:SetText("|TInterface\\Icons\\inv_misc_map_01:13:13:0:0|t |cFFFFD100Destino: Marcador (Pin)|r")
+        elseif selectedTravelTo == "__hearthstone__" then
+            v.travelToBtn.text:SetText("|TInterface\\Icons\\inv_misc_rune_01:13:13:0:0|t |cFF00FF00Destino: Piedra de Hogar|r")
+        elseif toNode then
+            v.travelToBtn.text:SetText(string.format("|TInterface\\Icons\\inv_banner_03:13:13:0:0|t |cFFFFD100Destino: %s|r", toNode.name))
+        else
+            v.travelToBtn.text:SetText("|TInterface\\Icons\\inv_banner_03:13:13:0:0|t |cFFFFD100Destino: (ninguno)|r")
+        end
+    end
+
+    -- 2. Limpiar filas de itinerario
+    for _, row in ipairs(v.rightCol.legRows) do row:Hide() end
+
+    -- 3. Calcular la ruta si ambos extremos están definidos
+    if selectedTravelFrom and selectedTravelTo then
+        currentTravelPlan = ns.TravelPlanner:CalculateRoute(selectedTravelFrom, selectedTravelTo, {
+            routingMode = selectedTravelMode or "fastest",
+            checkHearthstone = true,
+        })
+    else
+        currentTravelPlan = nil
+    end
+
+    local plan = currentTravelPlan
+
+    if plan and plan.success and plan.legs and #plan.legs > 0 then
+        v.rightCol.emptyMsg:Hide()
+
+        local yOffset = 0
+        local modeNames = {
+            flight    = "|cFF88AAFFMaestro de Vuelos|r",
+            walk      = "|cFF00FF00A pie / Camino|r",
+            tram      = "|cFFFFD100Tranvía Gnomo|r",
+            boat      = "|cFF44AAFFBarco marítimo|r",
+            zeppelin  = "|cFFFF8844Zepelín Horda|r",
+            swim      = "|cFF33CCFFNado seguro|r",
+            portal    = "|cFF00FFFFPortal Mágico|r",
+        }
+
+        for i, leg in ipairs(plan.legs) do
+            local row = v.rightCol.legRows[i]
+            if not row then
+                row = CreateFrame("Frame", nil, v.rightCol.legContent, "BackdropTemplate")
+                row:SetHeight(48)
+                row:SetBackdrop({
+                    bgFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = 1,
+                })
+                row:SetBackdropColor(0.06, 0.07, 0.1, 0.85)
+                row:SetBackdropBorderColor(0.2, 0.3, 0.4, 0.8)
+
+                local icon = row:CreateTexture(nil, "ARTWORK")
+                icon:SetSize(24, 24)
+                icon:SetPoint("LEFT", row, "LEFT", 6, 0)
+                if icon.SetMask then
+                    icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                end
+                row.icon = icon
+
+                -- Fila Superior: Título (Izquierda) y Duración (Derecha)
+                local dur = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                dur:SetPoint("TOPRIGHT", row, "TOPRIGHT", -8, -6)
+                dur:SetHeight(14)
+                dur:SetJustifyH("RIGHT")
+                row.dur = dur
+
+                local title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                title:SetPoint("TOPLEFT", row, "TOPLEFT", 36, -6)
+                title:SetPoint("RIGHT", dur, "LEFT", -6, 0)
+                title:SetHeight(14)
+                title:SetJustifyH("LEFT")
+                title:SetWordWrap(false)
+                row.title = title
+
+                -- Fila Inferior: Tipo de transporte (Izquierda) y Coste (Derecha)
+                local cost = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                cost:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -8, 6)
+                cost:SetHeight(14)
+                cost:SetJustifyH("RIGHT")
+                row.cost = cost
+
+                local sub = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+                sub:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 36, 6)
+                sub:SetPoint("RIGHT", cost, "LEFT", -6, 0)
+                sub:SetHeight(14)
+                sub:SetJustifyH("LEFT")
+                sub:SetWordWrap(false)
+                row.sub = sub
+
+                row:EnableMouse(true)
+                row:SetScript("OnEnter", function(s)
+                    s:SetBackdropColor(0.12, 0.16, 0.22, 1)
+                    s:SetBackdropBorderColor(0.4, 0.6, 0.8, 1)
+                    if GameTooltip and s.legData then
+                        GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
+                        GameTooltip:AddLine(string.format("Etapa %d: %s", s.legIndex or 1, s.legData.toName or ""), 1, 0.84, 0)
+                        if s.legData.fromName then
+                            GameTooltip:AddLine(string.format("Origen: %s", s.legData.fromName), 0.8, 0.8, 0.8)
+                        end
+                        GameTooltip:AddLine(string.format("Tiempo estimado: ~%.1f min", s.legData.minutes or 1), 0.7, 0.9, 0.7)
+                        if s.legData.costCopper and s.legData.costCopper > 0 then
+                            GameTooltip:AddLine("Coste: " .. ns.TravelPlanner:FormatMoney(s.legData.costCopper), 1, 1, 1)
+                        end
+                        if s.legData.danger then
+                            GameTooltip:AddLine("Peligro: " .. s.legData.danger, 1, 0.3, 0.3)
+                        end
+                        if s.legData.tip then
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine("Consejo: " .. s.legData.tip, 0, 1, 0.8, true)
+                        end
+                        GameTooltip:Show()
+                    end
+                end)
+                row:SetScript("OnLeave", function(s)
+                    s:SetBackdropColor(0.06, 0.07, 0.1, 0.85)
+                    s:SetBackdropBorderColor(0.2, 0.3, 0.4, 0.8)
+                    if GameTooltip then GameTooltip:Hide() end
+                end)
+
+                v.rightCol.legRows[i] = row
+            end
+
+            row.legData = leg
+            row.legIndex = i
+
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", v.rightCol.legContent, "TOPLEFT", 0, -yOffset)
+            row:SetPoint("RIGHT", v.rightCol.legContent, "RIGHT", 0, 0)
+
+            row.icon:SetTexture(leg.icon or "Interface\\Icons\\inv_misc_map_01")
+            row.title:SetText(string.format("%d. %s", i, leg.toName))
+            row.dur:SetText(string.format("~%.1f min", leg.minutes or 1))
+
+            local costText = (leg.costCopper and leg.costCopper > 0) and ns.TravelPlanner:FormatMoney(leg.costCopper) or "|cFF888888Gratis|r"
+            row.cost:SetText(costText)
+
+            local subText = modeNames[leg.mode] or "Transporte"
+            if leg.isInitialPlayerHop then
+                if leg.toNode and leg.toNode.type == "boat" then
+                    subText = "|cFF88CC88A pie / Ir al Puerto|r"
+                elseif leg.toNode and leg.toNode.type == "tram" then
+                    subText = "|cFF88CC88A pie / Ir al Tranvía|r"
+                elseif leg.toNode and leg.toNode.type == "flightmaster" then
+                    subText = "|cFF88CC88A pie / Ir al Maestro|r"
+                else
+                    subText = "|cFF88CC88A pie / Camino|r"
+                end
+            elseif leg.danger then
+                subText = subText .. " |cFFFF5533· Peligro|r"
+            end
+            row.sub:SetText(subText)
+
+            row:Show()
+            yOffset = yOffset + 52
+        end
+
+        v.rightCol.legContent:SetHeight(math.max(10, yOffset))
+
+        -- Actualizar la Caja de Detalles (Boarding Pass inferior)
+        if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
+            mainFrame.detailTitle:SetText(string.format("|cFFFFD100Itinerario:|r %s (%d etapa%s)",
+                plan.guideData.title, #plan.legs, (#plan.legs == 1) and "" or "s"))
+
+            local costFmt = ns.TravelPlanner:FormatMoney(plan.totalCostCopper)
+            local dangerColor = (plan.dangerRating == "Bajo") and "|cFF00FF00Bajo|r" or "|cFFFF8800Moderado|r"
+
+            local line1 = string.format("Tiempo: |cFF00FF00~%.1f min|r   |   Coste: %s   |   Peligro: %s",
+                plan.totalMinutes or 0, costFmt, dangerColor)
+
+            local line2 = "Pulsa '|cFFFFD100Iniciar Guía|r' para sincronizar la Crazy Arrow 3D de TomTom."
+            if plan.missingDiscoveries and #plan.missingDiscoveries > 0 then
+                line2 = string.format("|cFFFFBB00Nota:|r Habla con el maestro de vuelos en: %s",
+                    table.concat(plan.missingDiscoveries, ", "))
+            elseif plan.hearthstone and plan.hearthstone.isBeneficial then
+                line2 = string.format("|cFF00FF00¡Atajo disponible!|r Usar tu Piedra de Hogar en %s te ahorra |cFFFFD100~%.1f min|r de viaje.",
+                    plan.hearthstone.bindLocation or "tu posada", plan.hearthstone.timeSaved or 0)
+            elseif plan.hearthstone and plan.hearthstone.available then
+                line2 = string.format("|cFF00FFFFPiedra de Hogar lista:|r Vinculada en %s.",
+                    plan.hearthstone.bindLocation or "tu posada")
+            end
+
+            mainFrame.detailText:SetText(line1 .. "\n" .. line2)
+        end
+    else
+        v.rightCol.emptyMsg:Show()
+        if plan and not plan.success then
+            v.rightCol.emptyMsg:SetText("|cFFFF4444" .. (plan.error or "No se pudo calcular la ruta.") .. "|r")
+        else
+            v.rightCol.emptyMsg:SetText("Elige origen y destino para visualizar los vuelos, barcos, tranvía y tiempos de viaje.")
+        end
+
+        if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
+            mainFrame.detailTitle:SetText("|cFFFFD100Planeador de Viaje|r · Preparado")
+            mainFrame.detailText:SetText("Selecciona una ciudad o maestro de vuelo de origen y destino.\nPuedes hacer clic en los 'Destinos Rápidos' de la izquierda para seleccionar al instante.")
+        end
+    end
+
+    self:UpdateBottomButtons()
+end
+
+
 
 -- =========================================================================
 -- ACCIONES DE LOS 3 BOTONES INFERIORES
@@ -2990,10 +3950,19 @@ function MainUI:OnActionButton1()
     if currentKey == "bis" then
         self:SetBiSWaypoint()
     elseif currentKey == "secrets" then
-        local secret = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
-        if secret and ns.GuideHUD then
-            local curStep = (ns.GetSecretProgress and ns.GetSecretProgress(selectedSecretKey)) or 1
-            ns.GuideHUD:StartRoute(secret, selectedSecretKey, curStep)
+        local curMilestone = (ns.GetSecretProgress and ns.GetSecretProgress(selectedSecretKey)) or 1
+        local guideData, startStep = ns.GetDynamicSecretGuide and ns.GetDynamicSecretGuide(selectedSecretKey, curMilestone)
+        if not guideData then
+            guideData = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
+            startStep = curMilestone
+        end
+        if guideData and ns.GuideHUD then
+            ns.GuideHUD:StartRoute(guideData, selectedSecretKey, startStep)
+
+            if guideData.isDynamicTravel then
+                ns.Print(string.format("|cFF00FFCCRuta dinámica activa:|r Guiando hacia el hito %d (%s etapas).",
+                    curMilestone, (guideData.steps and #guideData.steps) or 1))
+            end
         end
     elseif currentKey == "farming" then
         if selectedFarmingItemType == "route" and selectedFarmingItemData and ns.GuideHUD then
@@ -3028,6 +3997,15 @@ function MainUI:OnActionButton1()
                 if ns.RaidPrep.BroadcastStatus then ns.RaidPrep:BroadcastStatus() end
             end
         end
+    elseif currentKey == "travel" then
+        if currentTravelPlan and currentTravelPlan.success then
+            ns.TravelPlanner:StartPlannedRoute(currentTravelPlan)
+        elseif selectedTravelFrom and selectedTravelTo then
+            ns.TravelPlanner:PlanAndStart(selectedTravelFrom, selectedTravelTo, { routingMode = selectedTravelMode })
+            self:UpdateTravelView()
+        else
+            ns.Print(ns.Red("Elige un origen y un destino primero."))
+        end
     elseif currentKey == "guild" then
         ns.Print("Discord oficial: " .. ns.Gold(ns.DISCORD_URL))
     end
@@ -3042,7 +4020,31 @@ function MainUI:OnActionButton2()
             self:CycleBiSBracket()
         end
     elseif currentKey == "secrets" then
-        self:RefreshCurrentView()
+        local secret = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
+        if secret and secret.steps then
+            local curStepIdx = (ns.GetSecretProgress and ns.GetSecretProgress(selectedSecretKey)) or (secret.currentStep or 1)
+            local curStep = (ns.GetSecretMilestoneTargetStep and ns.GetSecretMilestoneTargetStep(selectedSecretKey, curStepIdx)) or secret.steps[curStepIdx] or secret.steps[1]
+            if curStep and curStep.uiMapID and curStep.x and curStep.y then
+                selectedTravelFrom = "__player__"
+                selectedTravelTo = {
+                    uiMapID = curStep.uiMapID,
+                    x = curStep.x,
+                    y = curStep.y,
+                    name = curStep.title or secret.title,
+                    zoneName = curStep.zoneName,
+                }
+                if self.SelectTab then
+                    self:SelectTab("travel")
+                elseif tabIndexByKey["travel"] then
+                    self:OpenTab(tabIndexByKey["travel"])
+                end
+                ns.Print(string.format("Planificando viaje multimodal hacia el hito %d de |cFFFFD100%s|r...", curStepIdx, secret.title))
+            else
+                self:RefreshCurrentView()
+            end
+        else
+            self:RefreshCurrentView()
+        end
     elseif currentKey == "farming" then
         self:CycleFarmingBracket()
         self:UpdateBottomButtons()
@@ -3055,6 +4057,11 @@ function MainUI:OnActionButton2()
             end
         end
         self:RefreshCurrentView()
+    elseif currentKey == "travel" then
+        selectedTravelFrom = nil
+        selectedTravelTo = nil
+        currentTravelPlan = nil
+        self:UpdateTravelView()
     elseif currentKey == "guild" then
         self:RefreshCurrentView()
     end
@@ -3066,7 +4073,7 @@ function MainUI:UpdatePrepTabButtons()
         if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
             SetColumnHeaders("Mejora de Campamento", 195, 0, "Profesión / Req", 90, 196, "Beneficio / Estado", 177, 287, "RIGHT")
         else
-            SetColumnHeaders("Consumible", 220, 0, "Categoría / Efecto", 120, 221, "Inventario", 122, 342, "RIGHT")
+            SetColumnHeaders("Consumible", 310, 0, "Inventario", 154, 311, nil, nil, nil, nil, "RIGHT")
         end
         self:UpdateBottomButtons()
     end
@@ -3084,15 +4091,15 @@ function MainUI:UpdateBottomButtons()
             bottomButtons[1]:SetText("Marcar Jefe")
             bottomButtons[2]:SetText("Cambiar Tier")
         end
-        bottomButtons[3]:SetText("Alternar HUD")
+        bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "secrets" then
         bottomButtons[1]:SetText("Iniciar Ruta")
-        bottomButtons[2]:SetText("Actualizar")
-        bottomButtons[3]:SetText("Alternar HUD")
+        bottomButtons[2]:SetText("Planificar Viaje")
+        bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "farming" then
         bottomButtons[1]:SetText("Iniciar Ruta")
         bottomButtons[2]:SetText("Cambiar Tramo")
-        bottomButtons[3]:SetText("Alternar HUD")
+        bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "prep" then
         if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
             bottomButtons[1]:SetText("Transmitir Camp")
@@ -3101,11 +4108,19 @@ function MainUI:UpdateBottomButtons()
             bottomButtons[1]:SetText("Transmitir Prep")
             bottomButtons[2]:SetText("Reescanear")
         end
+        bottomButtons[3]:SetText("Habilidades")
+    elseif currentKey == "travel" then
+        if currentTravelPlan and currentTravelPlan.success then
+            bottomButtons[1]:SetText("Iniciar (" .. math.floor(currentTravelPlan.totalMinutes or 0) .. "m)")
+        else
+            bottomButtons[1]:SetText("Calcular Ruta")
+        end
+        bottomButtons[2]:SetText("Limpiar")
         bottomButtons[3]:SetText("Alternar HUD")
     elseif currentKey == "guild" then
         bottomButtons[1]:SetText("Copiar Discord")
         bottomButtons[2]:SetText("Sincronizar")
-        bottomButtons[3]:SetText("Alternar HUD")
+        bottomButtons[3]:SetText("Habilidades")
     end
 end
 
@@ -3138,9 +4153,9 @@ function MainUI:SelectTab(indexOrKey)
 
     if currentKey == "bis" then
         if selectedBiSMode == "enchants" then
-            SetColumnHeaders("Ranura", 80, 0, "Encantamiento Óptimo", 244, 81, "Fuente", 138, 326, "RIGHT")
+            SetColumnHeaders("Ranura", 80, 0, "Encantamiento Óptimo", 295, 81, "Fuente", 142, 378, "RIGHT")
         else
-            SetColumnHeaders("Ranura", 80, 0, "Objeto BiS", 244, 81, "Estado", 138, 326, "RIGHT")
+            SetColumnHeaders("Ranura", 80, 0, "Objeto BiS", 295, 81, "Estado", 142, 378, "RIGHT")
         end
         self:UpdateBiSView()
     else
@@ -3148,26 +4163,33 @@ function MainUI:SelectTab(indexOrKey)
     end
 
     if currentKey == "secrets" then
-        mainFrame.heroTitle:SetText("|cFFFFD100Secretos Recomendados|r")
-        SetColumnHeaders("Secreto / Misión", 248, 0, "Zona", 112, 249, "Progreso", 102, 362, "RIGHT")
+        mainFrame.heroTitle:SetText("|cFFFFD100Guías & Secretos|r")
+        SetColumnHeaders("Secreto / Misión", 260, 0, "Zona / Distancia", 170, 261, "Progreso", 92, 432, "RIGHT")
         self:UpdateSecretsView()
     elseif currentKey == "farming" then
-        SetColumnHeaders("Material / Paso / Ruta", 176, 0, "Origen / Receta", 144, 177, "Inventario / Requisito", 143, 321, "RIGHT")
+        SetColumnHeaders("Material / Paso / Ruta", 210, 0, "Origen / Receta", 160, 211, "Inventario / Requisito", 152, 372, "RIGHT")
         self:ShowDetailRewards(nil)
         self:UpdateFarmingView()
     elseif currentKey == "prep" then
         if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
-            SetColumnHeaders("Mejora de Campamento", 195, 0, "Profesión / Req", 90, 196, "Beneficio / Estado", 177, 287, "RIGHT")
+            SetColumnHeaders("Mejora de Campamento", 225, 0, "Profesión / Req", 105, 226, "Beneficio / Estado", 192, 332, "RIGHT")
         else
-            SetColumnHeaders("Consumible", 220, 0, "Categoría / Efecto", 120, 221, "Inventario", 122, 342, "RIGHT")
+            SetColumnHeaders("Consumible", 355, 0, "Inventario", 167, 356, nil, nil, nil, nil, "RIGHT")
         end
         self:UpdateBottomButtons()
         if ns.RaidPrep and ns.RaidPrep.Update then
             ns.RaidPrep:Update()
         end
+    elseif currentKey == "travel" then
+        mainFrame.heroTitle:SetText("|cFFFFD100Planeador de Viaje|r")
+        if colHeaderButtons[1] then colHeaderButtons[1]:Hide() end
+        if colHeaderButtons[2] then colHeaderButtons[2]:Hide() end
+        if colHeaderButtons[3] then colHeaderButtons[3]:Hide() end
+        self:ShowDetailRewards(nil)
+        self:UpdateTravelView()
     elseif currentKey == "guild" then
         mainFrame.heroTitle:SetText("|cFF00FFCCHermandad Awakening|r")
-        SetColumnHeaders("Miembro", 220, 0, "Rango", 120, 221, "Nivel", 122, 342, "RIGHT")
+        SetColumnHeaders("Miembro", 255, 0, "Rango", 135, 256, "Nivel", 132, 392, "RIGHT")
         self:ShowDetailRewards(nil)
         if mainFrame.detailTitle then
             mainFrame.detailTitle:SetText("|cFF00FFCCHermandad Awakening|r · Protocolo Comms Activo")

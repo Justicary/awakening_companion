@@ -18,10 +18,14 @@ Data/BiSData.lua
 Data/StatWeightsData.lua
 Data/FarmingData.lua
 Data/CampingData.lua
+Data/SkillsData.lua
+Data/TravelData.lua
 
 # Modules
 Modules/GuideHUD.lua
+Modules/TravelPlanner.lua
 Modules/RaidPrep.lua
 Modules/GuildRoster.lua
+Modules/SkillsUI.lua
 Modules/MainUI.lua
 Modules/MinimapButton.lua

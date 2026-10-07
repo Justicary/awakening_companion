@@ -6,7 +6,7 @@
 
 ## 1. Contexto del Proyecto y Entorno
 
-* **Producto:** **Awakening: Companion**, addon y suite de herramientas integradas para **World of Warcraft Forever Beta** dirigido a la comunidad hispanohablante.
+* **Producto:** **Awakening: Companion**, addon y suite de herramientas integradas para **World of Warcraft Forever** dirigido a nuevos y/o veteranos jugadores de la comunidad hispanohablante.
 * **Versión de Interfaz (`## Interface`):** `16001` (WoW Classic Forever Beta).
 * **Referencia Visual y Arquitectónica:** Código y recursos del addon local en `D:\World of Warcraft\_classic_beta_\Interface\AddOns\Olympus` (utilizar como estándar para imitar estilos de widgets, jerarquía visual, pestañas y manejo seguro de eventos).
 
@@ -39,7 +39,7 @@
 * **Estructura Estética Olympus:**
   1. **Cabecera superior oscura:** Emblema circular o *crest* en la esquina superior izquierda (`spell_holy_magicalsentry`), título dorado prominente (`GameFontNormalHuge`), métricas en color oro (`GameFontHighlightLarge`) y estado del servidor/versión (`GameFontDisableSmall`).
   2. **Contenedor de datos tipo inset:** Fondo oscuro amarmolado (`Interface\FrameGeneral\UI-Background-Marble`) con bordes tooltip (`Interface\Tooltips\UI-Tooltip-Border`) y tinte de alto contraste (`0.02, 0.02, 0.04, 0.95`).
-  3. **Barra inferior de 3 botones:** Botones de dimensiones consistentes (ej. `Discord`, `Actualizar`, `Alternar HUD`).
+  3. **Barra inferior de 3 botones:** Botones de dimensiones consistentes (ej. `Iniciar Ruta / Marcar`, `Actualizar`, `Habilidades`).
 
 ### Sistema de Pestañas Laterales (Right Side Tabs)
 * Ancladas verticalmente en el borde lateral derecho de la ventana principal, simulando las pestañas nativas del libro de hechizos o el panel de comunidades de WoW:

@@ -96,33 +96,114 @@ local CAMELOT_BANDAGES = {
 
 local CAMELOT_FOOD_HEALER = {
     { minLevel = 45, id = 13931, name = "Sopa de aleta de noche",         effect = "+8 Maná cada 5 s (10 min)",   minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_14", tip = "Regeneración de maná activa mientras lanzas curaciones (Mp5 ininterrumpido).", source = "Cocina (250) / Pargo de noche" },
-    { minLevel = 30, id = 21217, name = "Delicia de sabiola",             effect = "+6 Maná cada 5 s (15 min)",   minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 constante durante el combate, acelera la recarga entre sanaciones.", source = "Cocina (175) / Sabiola superior" },
-    { minLevel = 15, id = 3665,  name = "Tortilla curiosamente sabrosa",  effect = "+6 Aguante y +6 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "El espíritu acelera enormemente la regeneración de maná fuera de combate.", source = "Cocina (130) / Huevos de rapaz" },
-    { minLevel = 10, id = 21072, name = "Sabiola ahumada",                 effect = "+3 Maná cada 5 s (15 min)",   minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 temprano indispensable para mazmorras como Minas de la Muerte o Cuevas de los Lamentos.", source = "Cocina (80) / Sabiola cruda" },
-    { minLevel = 1,  id = 5525,  name = "Almeja hervida",                  effect = "+4 Aguante y +4 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aumenta tu reserva de salud y la velocidad de regeneración con espíritu.", source = "Cocina (50) / Carne de almeja" },
+    { minLevel = 30, id = 25954, name = "Delicia de sabiola",             effect = "+7 Daño Hechizos (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 constante durante el combate (+5% EXP por muertes).", source = "Cocina (175) / Sabiola superior" },
+    { minLevel = 15, id = 21072, name = "Sabiola ahumada",                 effect = "+4 Daño Hechizos y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Daño con hechizos (+5% EXP por muertes).", source = "Cocina (80) / Sabiola cruda" },
+    { minLevel = 5,  id = 2682,  name = "Pastel de cangrejo",              effect = "+3 Intelecto (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Intelecto: +3 Intelecto y +5% de experiencia por muertes.", source = "Cocina (75) / Carne de reptador" },
+    { minLevel = 1,  id = 2683,  name = "Pinza de cangrejo cocinada",       effect = "+2 Intelecto (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Intelecto inicial y +5% de experiencia por muertes.", source = "Cocina (85) / Pinza de reptador" },
 }
 
 local CAMELOT_FOOD_CASTER = {
     { minLevel = 45, id = 18254, name = "Sorpresa tubérculo de runn tum", effect = "+10 Intelecto (10 min)",     minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "+150 Maná total y mayor probabilidad de golpe crítico con hechizos.", source = "Cocina (275) / La Masacre" },
-    { minLevel = 30, id = 21217, name = "Delicia de sabiola",             effect = "+6 Maná cada 5 s (15 min)",   minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 activo permanente para sostener rotaciones continuas de daño mágico.", source = "Cocina (175) / Sabiola superior" },
-    { minLevel = 15, id = 3665,  name = "Tortilla curiosamente sabrosa",  effect = "+6 Aguante y +6 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Supervivencia y regeneración de recursos tras cada combate.", source = "Cocina (130) / Huevos de rapaz" },
-    { minLevel = 10, id = 21072, name = "Sabiola ahumada",                 effect = "+3 Maná cada 5 s (15 min)",   minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 para casters en mazmorras iniciales.", source = "Cocina (80) / Sabiola cruda" },
-    { minLevel = 1,  id = 5525,  name = "Almeja hervida",                  effect = "+4 Aguante y +4 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Espíritu esencial para recargar maná rápidamente.", source = "Cocina (50) / Carne de almeja" },
+    { minLevel = 30, id = 25954, name = "Delicia de sabiola",             effect = "+7 Daño Hechizos (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 activo permanente y daño mágico (+5% EXP).", source = "Cocina (175) / Sabiola superior" },
+    { minLevel = 10, id = 21072, name = "Sabiola ahumada",                 effect = "+4 Daño Hechizos y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Comida de Daño con hechizos y +5% EXP.", source = "Cocina (80) / Sabiola cruda" },
+    { minLevel = 5,  id = 2682,  name = "Pastel de cangrejo",              effect = "+3 Intelecto (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Intelecto: +3 Intelecto y +5% de experiencia.", source = "Cocina (75) / Carne de reptador" },
+    { minLevel = 1,  id = 2683,  name = "Pinza de cangrejo cocinada",       effect = "+2 Intelecto (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Intelecto inicial y +5% de experiencia por muertes.", source = "Cocina (85) / Pinza de reptador" },
 }
 
 local CAMELOT_FOOD_MELEE = {
+    { minLevel = 55, id = 20452, name = "Empanadillas del desierto ahumadas", effect = "+20 Fuerza (15 min)",        minCount = 10, icon = "Interface\\Icons\\inv_misc_food_64", tip = "El buff alimentario de mayor fuerza de Classic.", source = "Cocina (285) / Gusanos de arena (Silithus)" },
     { minLevel = 45, id = 13928, name = "Calamar a la parrilla",          effect = "+10 Agilidad (10 min)",       minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_13", tip = "El mejor consumible alimentario para daño físico y golpe crítico.", source = "Cocina (240) / Calamar de invierno" },
-    { minLevel = 35, id = 20074, name = "Guiso pesado de crocolisco",      effect = "+12 Aguante y +12 Espíritu",  minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aumento de estadísticas para soportar daño en área.", source = "Cocina (200) / Carne de crocolisco" },
-    { minLevel = 15, id = 3726,  name = "Filete de oso grande",            effect = "+6 Aguante y +6 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Resistencia y rápida recuperación entre pulls.", source = "Cocina (110) / Lomo de oso grande" },
-    { minLevel = 1,  id = 2684,  name = "Filete de coyote",                effect = "+3 Agilidad y +3 Aguante",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Agilidad temprana para daño y esquive cuerpo a cuerpo.", source = "Cocina (50) / Carne de coyote" },
+    { minLevel = 35, id = 20074, name = "Guiso pesado de crocolisco",      effect = "+12 Aguante (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aumento de aguante para sobrevivir pulls grandes (+5% EXP).", source = "Cocina (200) / Carne de crocolisco" },
+    { minLevel = 15, id = 5479,  name = "Cola de lagarto crujiente",       effect = "+6 Agilidad (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Agilidad: +6 Agilidad y +5% de experiencia por muertes.", source = "Cocina (100) / Cola de lagarto de hierba" },
+    { minLevel = 5,  id = 2687,  name = "Costillas de cerdo secas",        effect = "+3 Fuerza (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_14", tip = "Comida de Fuerza: +3 Fuerza para daño físico y +5% de experiencia por muertes.", source = "Cocina (80) / Costillas de jabalí" },
+    { minLevel = 1,  id = 2680,  name = "Carne de jabalí asada",           effect = "+2 Fuerza (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +2 Fuerza y +5% de experiencia por muertes.", source = "Cocina (1) / Trozo de carne de jabalí" },
 }
 
 local CAMELOT_FOOD_TANK = {
     { minLevel = 55, id = 21023, name = "Albóndigas de quimeroque",        effect = "+25 Aguante (15 min)",        minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", quality = 3, tip = "El mejor buff alimentario de tanque en todo WoW Classic.", source = "Cocina (300) / Lomo de quimeroque" },
     { minLevel = 45, id = 13935, name = "Salmón al horno",                 effect = "+14 Aguante (15 min)",        minCount = 10, icon = "Interface\\Icons\\inv_misc_fish_20", tip = "Gran aporte de salud para mitigar golpes contundentes.", source = "Cocina (275) / Salmón solescama" },
-    { minLevel = 35, id = 20074, name = "Guiso pesado de crocolisco",      effect = "+12 Aguante y +12 Espíritu",  minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aguante sustancial para tanquear mazmorras intermedias.", source = "Cocina (200) / Carne de crocolisco" },
-    { minLevel = 15, id = 3665,  name = "Tortilla curiosamente sabrosa",  effect = "+6 Aguante y +6 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Salud y recuperación sostenida.", source = "Cocina (130) / Huevos de rapaz" },
-    { minLevel = 1,  id = 5525,  name = "Almeja hervida",                  effect = "+4 Aguante y +4 Espíritu",    minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aumenta la salud base del tanque.", source = "Cocina (50) / Carne de almeja" },
+    { minLevel = 35, id = 20074, name = "Guiso pesado de crocolisco",      effect = "+12 Aguante (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aguante sustancial para tanquear mazmorras (+5% EXP).", source = "Cocina (200) / Carne de crocolisco" },
+    { minLevel = 15, id = 3665,  name = "Tortilla curiosamente sabrosa",  effect = "+6 Aguante (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Salud y supervivencia fuera de combate (+5% EXP).", source = "Cocina (130) / Huevos de rapaz" },
+    { minLevel = 1,  id = 5525,  name = "Almeja hervida",                  effect = "+4 Aguante (15 min) y +5% EXP", minCount = 10, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aumenta la salud base del tanque (+5% EXP).", source = "Cocina (50) / Carne de almeja" },
+}
+
+-- Matriz Universal de Alimentos WoW Forever / Camelot con Estadísticas para Ponderación de StatWeights
+local ALL_CAMELOT_FOODS = {
+    -- =========================================================================
+    -- NIVEL 55-60+ (Endgame & Raids)
+    -- =========================================================================
+    { minLevel = 55, id = 21023, name = "Albóndigas de quimeroque",        stats = { STA = 25 }, effect = "+25 Aguante (15 min)",        minCount = 10, quality = 3, icon = "Interface\\Icons\\inv_misc_food_15", tip = "El mejor buff alimentario de tanque en todo WoW Classic.", source = "Cocina (300) / Lomo de quimeroque" },
+    { minLevel = 55, id = 20452, name = "Empanadillas del desierto ahumadas", stats = { STR = 20 }, effect = "+20 Fuerza (15 min)",        minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_64", tip = "El buff de mayor fuerza de Classic, óptimo para clases físicas basadas en fuerza.", source = "Cocina (285) / Gusanos de arena (Silithus)" },
+
+    -- =========================================================================
+    -- NIVEL 45+ (Nivel Alto & Pre-Raid)
+    -- =========================================================================
+    { minLevel = 45, id = 13810, name = "Frutosol bendito",                stats = { STR = 10 }, effect = "+10 Fuerza (10 min)",        minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_11", tip = "Buff alimentario de fuerza para guerreros y paladines.", source = "Amanecer Argenta (Venerado) / Frutosol bendito" },
+    { minLevel = 45, id = 13928, name = "Calamar a la parrilla",          stats = { AGI = 10 }, effect = "+10 Agilidad (10 min)",       minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_13", tip = "El mejor consumible alimentario para clases de agilidad y golpe crítico.", source = "Cocina (240) / Calamar de invierno" },
+    { minLevel = 45, id = 18254, name = "Sorpresa tubérculo de runn tum", stats = { INT = 10 }, effect = "+10 Intelecto (10 min)",     minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "+10 Intelecto para mayor reserva de maná y crítico mágico.", source = "Cocina (275) / La Masacre" },
+    { minLevel = 45, id = 13931, name = "Sopa de aleta de noche",         stats = { MP5 = 8 },  effect = "+8 Maná cada 5 s (10 min)",   minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_14", tip = "Regeneración ininterrumpida de maná (Mp5) mientras lanzas curaciones o hechizos.", source = "Cocina (250) / Pargo de noche" },
+    { minLevel = 45, id = 13935, name = "Salmón al horno",                 stats = { STA = 14 }, effect = "+14 Aguante (15 min)",        minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_20", tip = "Gran aporte de salud para mitigar golpes contundentes de jefes.", source = "Cocina (275) / Salmón solescama" },
+
+    -- =========================================================================
+    -- NIVEL 30-35+ (Leveleo Medio-Avanzado)
+    -- =========================================================================
+    { minLevel = 35, id = 20074, name = "Guiso pesado de crocolisco",      stats = { STA = 12 }, effect = "+12 Aguante (15 min) y +5% EXP",  minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Aumento de estadísticas para soportar daño sostenido (+5% EXP).", source = "Cocina (200) / Carne de crocolisco" },
+    { minLevel = 30, id = 25954, name = "Delicia de sabiola",             stats = { SPELL_POWER = 7 }, effect = "+7 Daño Hechizos (15 min) y +5% EXP",   minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Mp5 constante durante el combate, acelera la recarga entre hechizos (+5% EXP).", source = "Cocina (175) / Sabiola superior" },
+
+    -- =========================================================================
+    -- NIVEL 25+ (Leveleo Intermedio)
+    -- =========================================================================
+    { minLevel = 25, id = 3728,  name = "Filete de león sabrozo",     stats = { AGI = 10 },  effect = "+10 Agilidad (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +8 Fuerza y +5% de experiencia por muertes.", source = "Cocina (125) / Carne de león" },
+    { minLevel = 25, id = 12210, name = "Raptor asado",                   stats = { INT = 5} ,  effect = "+5 Intelecto (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Agilidad: +8 Agilidad y +5% de experiencia por muertes.", source = "Cocina (175) / Carne de raptor" },
+    { minLevel = 25, id = 3400,  name = "Bisqué de tortuga reconfortante", stats = { INT = 8 },  effect = "+8 Intelecto (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Intelecto: +8 Intelecto y +5% de experiencia por muertes.", source = "Cocina (175) / Carne de tortuga" },
+
+    -- =========================================================================
+    -- NIVEL 15+ (Leveleo Medio)
+    -- =========================================================================
+    { minLevel = 15, id = 3370,  name = "Filete de crocolisco",            stats = { STR = 6 },  effect = "+6 Fuerza (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +6 Fuerza y +5% de experiencia por muertes.", source = "Cocina (80) / Carne de crocolisco" },
+    { minLevel = 15, id = 5479,  name = "Cola de lagarto crujiente",       stats = { AGI = 6 },  effect = "+6 Agilidad (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Agilidad: +6 Agilidad y +5% de experiencia por muertes.", source = "Cocina (100) / Cola de lagarto de hierba" },
+    { minLevel = 15, id = 3665,  name = "Tortilla curiosamente sabrosa",  stats = { STA = 6 },  effect = "+6 Aguante (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Salud y recuperación sostenida fuera de combate (+5% EXP).", source = "Cocina (130) / Huevos de rapaz" },
+
+    -- =========================================================================
+    -- NIVEL 5-10+ (Leveleo Inicial / Mazmorras Tempranas - WoW Forever)
+    -- =========================================================================
+    -- Strength Food (+Fuerza y +5% EXP)
+    { minLevel = 5,  id = 2687,  name = "Costillas de cerdo secas",        stats = { STR = 3 },  effect = "+3 Fuerza (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_14", tip = "Comida de Fuerza: +3 Fuerza para daño físico y +5% de experiencia por muertes.", source = "Cocina (80) / Costillas de jabalí" },
+    { minLevel = 5,  id = 3726,  name = "Pechuga de oso",            stats = { STR = 3 },  effect = "+3 Fuerza (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +3 Fuerza para daño físico y +5% de experiencia por muertes.", source = "Cocina (110) / Lomo de oso grande" },
+    { minLevel = 5,  id = 3220,  name = "Morcilla",                        stats = { STR = 3 },  effect = "+3 Fuerza (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +3 Fuerza y +5% de experiencia por muertes.", source = "Cocina (60) / Vísceras de jabalí y carne de oso" },
+    { minLevel = 5,  id = 724,   name = "Pastel de hígado de dentosangre", stats = { STR = 3 },  effect = "+3 Fuerza (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +3 Fuerza y +5% de experiencia por muertes.", source = "Cocina (50) / Hígado de dentosangre" },
+
+    -- Agility Food (+Agilidad y +5% EXP)
+    { minLevel = 5,  id = 2684,  name = "Filete de coyote",                stats = { AGI = 3 },  effect = "+3 Agilidad (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Agilidad: +3 Agilidad y +5% de experiencia por muertes.", source = "Cocina (50) / Carne de coyote" },
+    { minLevel = 10, id = 5472,  name = "Filete de frenesí",               stats = { AGI = 3 },  effect = "+3 Agilidad (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_15", tip = "Comida de Agilidad: +3 Agilidad y +5% de experiencia por muertes.", source = "Cocina (50) / Carne de frenesí" },
+
+    -- Intellect Food (+Intelecto y +5% EXP)
+    { minLevel = 10, id = 1082,  name = "Gulash de Crestagrana",           stats = { INT = 3 },  effect = "+3 Intelecto (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Intelecto: +3 Intelecto para maná/crítico mágico y +5% de experiencia.", source = "Cocina (100) / Carne de araña y hocico" },
+    { minLevel = 5,  id = 2682,  name = "Pastel de cangrejo",              stats = { INT = 3 },  effect = "+3 Intelecto (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Intelecto: +3 Intelecto y +5% de experiencia por muertes.", source = "Cocina (75) / Carne de reptador" },
+
+    -- Spell Damage Food (+Daño Mágico y +5% EXP)
+    { minLevel = 10, id = 21072, name = "Sabiola ahumada",                 stats = { SPELL_POWER = 4 }, effect = "+4 Daño Hechizos y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_21", tip = "Daño con hechizos y +5% de experiencia por muertes.", source = "Cocina (80) / Sabiola cruda / Vendedores en las capitales" },
+
+    -- Attack Power Food (+Poder de Ataque y +5% EXP)
+    { minLevel = 5,  id = 6289,  name = "Pargo boquilleno",                stats = { AP = 6 },   effect = "+6 Poder de Ataque (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_15", tip = "Comida de Poder de Ataque: +6 Poder de ataque y +5% de experiencia por muertes.", source = "Cocina (50) / Pargo boquilleno" },
+
+    -- =========================================================================
+    -- NIVEL 1+ (Rango Aprendiz - WoW Forever)
+    -- =========================================================================
+    -- Strength Food
+    { minLevel = 1,  id = 2680,  name = "Carne de jabalí asada",           stats = { STR = 1 }, effect = "+1 Fuerza (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Fuerza: +2 Fuerza y +5% de experiencia por muertes.", source = "Cocina (1) / Trozo de carne de jabalí" },
+
+    -- Agility Food
+    { minLevel = 1,  id = 2679,  name = "Carne de lobo especiada",         stats = { AGI = 1 }, effect = "+1 Agilidad (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Agilidad: +2 Agilidad y +5% de experiencia por muertes.", source = "Cocina (10) / Carne de lobo fibrosa" },
+
+    -- Intellect Food
+    { minLevel = 1,  id = 2683,  name = "Pinza de cangrejo cocinada",       stats = { INT = 1 }, effect = "+1 Intelecto (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Comida de Intelecto: +2 Intelecto y +5% de experiencia por muertes.", source = "Cocina (85) / Pinza de reptador" },
+
+    -- Attack Power Food
+    { minLevel = 1,  id = 6290,  name = "Pececillo brillante",             stats = { AP = 2 },  effect = "+2 Poder de Ataque (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_fish_15", tip = "Comida de Poder de Ataque: +4 Poder de ataque y +5% de experiencia por muertes.", source = "Cocina (1) / Pececillo brillante crudo" },
+
+    -- Stamina / Supervivencia
+    { minLevel = 1,  id = 8604,  name = "Huevos con hierbas",                  stats = { STA = 1 },  effect = "+1 Aguante (15 min) y +5% EXP", minCount = 10, quality = 1, icon = "Interface\\Icons\\inv_misc_food_15", tip = "Salud y recuperación temprana (+5% EXP).", source = "Cocina (10) / Huevo pequeño" },
 }
 
 -- Reagentes de Clase provenientes de Camelot
@@ -211,20 +292,20 @@ local CONSUMABLES_DB = {
     -- ---------------------------------------------------------------------
     ["1-19"] = {
         name = "Nivel 1-19 · Leveleo Inicial y Mazmorras",
-        short = "Nv. 1-19 (Inicial)",
+        short = "1-19 (Inicial)",
         isRaid = false,
         roles = {
             ["TANK"] = {
                 { id = 858,  name = "Poción de sanación inferior", minCount = 5,  category = "Poción",       effect = "+140 a 180 Salud",             tip = "Supervivencia de emergencia para el tanque en mazmorras iniciales.", source = "Alquimia (1) / Vendedores de suministros", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 2581, name = "Venda de lino pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 114 Salud en 8 s",         tip = "Permite curarte rápidamente sin consumir maná ni interrumpir a tu sanador.", source = "Primeros auxilios (40) / Paño de lino", icon = "Interface\\Icons\\inv_misc_bandage_15", quality = 1 },
-                { id = 5525, name = "Almeja hervida",               minCount = 10, category = "Comida (Buf)",  effect = "+4 Aguante y +4 Espíritu",     tip = "Aumenta tu salud máxima y tu regeneración fuera de combate.", source = "Cocina (50) / Carne de almeja", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 5525, name = "Almeja hervida",               minCount = 10, category = "Comida (Buf)",  effect = "+4 Aguante (15 min) y +5% EXP", tip = "Aumenta tu salud máxima y +5% de experiencia por muertes.", source = "Cocina (50) / Carne de almeja", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
                 { id = 2458, name = "Elixir de defensa menor",      minCount = 3,  category = "Elixir",       effect = "+50 Armadura durante 1 h",     tip = "Mitigación pasiva de daño físico contra ataques de monstruos.", source = "Alquimia (90) / Hierba de plata", icon = "Interface\\Icons\\inv_potion_24", quality = 1 },
                 { id = 2863, name = "Piedra de afilar gruesa",      minCount = 2,  category = "Arma",         effect = "+3 Daño con arma (30 min)",   tip = "Aumenta la generación de amenaza con daño de ataques blancos.", source = "Herrería (65) / Piedra gruesa", icon = "Interface\\Icons\\inv_stone_sharpeningstone_02", quality = 1 },
             },
             ["MELEE_DPS"] = {
                 { id = 858,  name = "Poción de sanación inferior", minCount = 5,  category = "Poción",       effect = "+140 a 180 Salud",             tip = "Recuperación de vida de emergencia al recibir agro.", source = "Alquimia (1) / Vendedores de suministros", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 2581, name = "Venda de lino pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 114 Salud en 8 s",         tip = "Cero downtime entre enemigos para optimizar velocidad de leveleo.", source = "Primeros auxilios (40) / Paño de lino", icon = "Interface\\Icons\\inv_misc_bandage_15", quality = 1 },
-                { id = 3579, name = "Carne de oso ahumada",         minCount = 10, category = "Comida (Buf)",  effect = "+4 Aguante y +4 Espíritu",     tip = "Estadísticas esenciales para sobrevivir sin morir en combate.", source = "Cocina (40) / Carne de oso", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 2687, name = "Costillas de cerdo secas",     minCount = 10, category = "Comida (Buf)",  effect = "+3 Fuerza (15 min) y +5% EXP", tip = "+3 Fuerza para optimizar daño físico y +5% de experiencia por muertes.", source = "Cocina (80) / Costillas de jabalí", icon = "Interface\\Icons\\inv_misc_food_14", quality = 1 },
                 { id = 2454, name = "Elixir de fuerza de león",     minCount = 3,  category = "Elixir",       effect = "+4 Fuerza durante 1 h",        tip = "Aumenta directamente tu poder de ataque cuerpo a cuerpo.", source = "Alquimia (1) / Flor de paz", icon = "Interface\\Icons\\inv_potion_43", quality = 1 },
                 { id = 2863, name = "Piedra de afilar gruesa",      minCount = 2,  category = "Arma",         effect = "+3 Daño con arma (30 min)",   tip = "Acelera el tiempo de muerte de cada monstruo.", source = "Herrería (65) / Piedra gruesa", icon = "Interface\\Icons\\inv_stone_sharpeningstone_02", quality = 1 },
             },
@@ -232,7 +313,7 @@ local CONSUMABLES_DB = {
                 { id = 2455,  name = "Poción de maná menor",        minCount = 5,  category = "Poción",       effect = "+140 a 180 Maná",              tip = "Maná instantáneo en combate para rematar pulls complicados.", source = "Alquimia (25) / Hojaplata", icon = "Interface\\Icons\\inv_potion_76", quality = 1 },
                 { id = 858,   name = "Poción de sanación inferior", minCount = 5,  category = "Poción",       effect = "+140 a 180 Salud",             tip = "Botón de pánico vital si los monstruos logran alcanzarte.", source = "Alquimia (1) / Vendedores de suministros", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 2581,  name = "Venda de lino pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 114 Salud en 8 s",         tip = "Ahorra maná curándote con vendas en lugar de hechizos de curación.", source = "Primeros auxilios (40) / Paño de lino", icon = "Interface\\Icons\\inv_misc_bandage_15", quality = 1 },
-                { id = 21072, name = "Sabiola ahumada",             minCount = 10, category = "Comida (Buf)",  effect = "+3 Maná cada 5 s (15 min)",    tip = "Mp5 activo que recarga tu maná mientras lanzas hechizos mágicos.", source = "Cocina (80) / Sabiola cruda", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
+                { id = 21072, name = "Sabiola ahumada",             minCount = 10, category = "Comida (Buf)",  effect = "+4 Daño Hechizos y +5% EXP", tip = "Daño con hechizos y +5% de experiencia.", source = "Cocina (80) / Sabiola cruda", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
                 { id = 1205,  name = "Zumo de melón",               minCount = 15, category = "Bebida",       effect = "Restaura 835 Maná en 21 s",    tip = "Bebida indispensable para reducir el tiempo de descanso entre combates.", source = "Taberneros y vendedores de comida", icon = "Interface\\Icons\\inv_drink_07", quality = 1 },
                 { id = 3383,  name = "Elixir de sabiduría",          minCount = 3,  category = "Elixir",       effect = "+6 Intelecto durante 1 h",     tip = "+90 de maná total y mayor probabilidad de crítico con hechizos.", source = "Alquimia (90) / Marregal", icon = "Interface\\Icons\\inv_potion_05", quality = 1 },
             },
@@ -240,7 +321,7 @@ local CONSUMABLES_DB = {
                 { id = 2455,  name = "Poción de maná menor",        minCount = 8,  category = "Poción",       effect = "+140 a 180 Maná",              tip = "Evita que el grupo muera si te quedas sin maná en mazmorras.", source = "Alquimia (25) / Hojaplata", icon = "Interface\\Icons\\inv_potion_76", quality = 1 },
                 { id = 858,   name = "Poción de sanación inferior", minCount = 5,  category = "Poción",       effect = "+140 a 180 Salud",             tip = "Autocuración de emergencia sin consumir tu propio maná de sanar.", source = "Alquimia (1) / Vendedores de suministros", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 2581,  name = "Venda de lino pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 114 Salud en 8 s",         tip = "Herramienta secundaria para parchar aliados sin gastar maná.", source = "Primeros auxilios (40) / Paño de lino", icon = "Interface\\Icons\\inv_misc_bandage_15", quality = 1 },
-                { id = 21072, name = "Sabiola ahumada",             minCount = 10, category = "Comida (Buf)",  effect = "+3 Maná cada 5 s (15 min)",    tip = "Regeneración Mp5 activa que funciona incluso mientras casteas curaciones.", source = "Cocina (80) / Sabiola cruda", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
+                { id = 21072, name = "Sabiola ahumada",             minCount = 10, category = "Comida (Buf)",  effect = "+4 Daño Hechizos y +5% EXP", tip = "Daño con hechizos y +5% de experiencia por muertes.", source = "Cocina (80) / Sabiola cruda", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
                 { id = 1205,  name = "Zumo de melón",               minCount = 20, category = "Bebida",       effect = "Restaura 835 Maná en 21 s",    tip = "Debes tener agua óptima para beber inmediatamente tras cada pull.", source = "Taberneros y vendedores de comida", icon = "Interface\\Icons\\inv_drink_07", quality = 1 },
                 { id = 3383,  name = "Elixir de sabiduría",          minCount = 3,  category = "Elixir",       effect = "+6 Intelecto durante 1 h",     tip = "Aumenta tu reserva máxima de maná para aguantar combates prolongados.", source = "Alquimia (90) / Marregal", icon = "Interface\\Icons\\inv_potion_05", quality = 1 },
             },
@@ -252,40 +333,41 @@ local CONSUMABLES_DB = {
     -- ---------------------------------------------------------------------
     ["20-34"] = {
         name = "Nivel 20-34 · Leveleo y Mazmorras Intermedias",
-        short = "Nv. 20-34 (Medio)",
+        short = "20-34 (Medio)",
         isRaid = false,
         roles = {
             ["TANK"] = {
                 { id = 929,  name = "Poción de sanación",          minCount = 5,  category = "Poción",       effect = "+280 a 360 Salud",             tip = "Recuperación de vida inmediata en pulls peligrosos de mazmorra.", source = "Alquimia (110) / Brezoespina", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 3531, name = "Venda de lana pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Cura rápida tras combates para mantener el ritmo del grupo.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
-                { id = 3665, name = "Tortilla curiosamente sabrosa", minCount = 10, category = "Comida (Buf)",  effect = "+6 Aguante y +6 Espíritu",     tip = "Buff continuo de estadísticas para soportar más castigo físico.", source = "Cocina (130) / Huevos de rapaz", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 3665, name = "Tortilla curiosamente sabrosa", minCount = 10, category = "Comida (Buf)",  effect = "+6 Aguante (15 min) y +5% EXP", tip = "Buff continuo de estadísticas (+5% EXP) para soportar más daño.", source = "Cocina (130) / Huevos de rapaz", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
                 { id = 3389, name = "Elixir de defensa",            minCount = 3,  category = "Elixir",       effect = "+150 Armadura durante 1 h",    tip = "Mitigación sólida indispensable para jefes de BFD y Monasterio.", source = "Alquimia (130) / Vid salvaje", icon = "Interface\\Icons\\inv_potion_24", quality = 1 },
                 { id = 3828, name = "Poción de piel de piedra",     minCount = 3,  category = "Utilidad",     effect = "+1000 Armadura (2 min)",       tip = "Pico de defensa colosal para momentos de daño extremo o adds extras.", source = "Alquimia (165) / Mostacho de Khadgar", icon = "Interface\\Icons\\inv_potion_69", quality = 1 },
                 { id = 2871, name = "Piedra de afilar pesada",      minCount = 2,  category = "Arma",         effect = "+4 Daño con arma (30 min)",   tip = "Aumento directo de amenaza física con ataques blancos y habilidades.", source = "Herrería (125) / Piedra pesada", icon = "Interface\\Icons\\inv_stone_sharpeningstone_03", quality = 1 },
             },
             ["MELEE_DPS"] = {
                 { id = 929,  name = "Poción de sanación",          minCount = 5,  category = "Poción",       effect = "+280 a 360 Salud",             tip = "Botón de pánico esencial si el tanque pierde el control de un add.", source = "Alquimia (110) / Brezoespina", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
-                { id = 3531, name = "Venda de lana pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Recuperación rápida sin downtime al hacer misiones en solitario.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
-                { id = 3726, name = "Filete de oso grande",         minCount = 10, category = "Comida (Buf)",  effect = "+6 Aguante y +6 Espíritu",     tip = "Resistencia y salud para leveleo continuo y mazmorras.", source = "Cocina (110) / Lomo de oso grande", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
-                { id = 3825, name = "Elixir de agilidad menor",     minCount = 3,  category = "Elixir",       effect = "+8 Agilidad durante 1 h",       tip = "+Poder de ataque, esquive y probabilidad de crítico.", source = "Alquimia (140) / Estranguladora", icon = "Interface\\Icons\\inv_potion_93", quality = 1 },
-                { id = 3388, name = "Elixir de sangre de ogro",     minCount = 3,  category = "Elixir",       effect = "+8 Fuerza durante 1 h",         tip = "+Poder de ataque para guerreros, paladines y ferales.", source = "Alquimia (125) / Raíz de tierra", icon = "Interface\\Icons\\inv_potion_20", quality = 1 },
-                { id = 2871, name = "Piedra de afilar pesada",      minCount = 2,  category = "Arma",         effect = "+4 Daño con arma (30 min)",   tip = "Mejora el daño base de tu arma principal.", source = "Herrería (125) / Piedra pesada", icon = "Interface\\Icons\\inv_stone_sharpeningstone_03", quality = 1 },
+                { id = 3531, name = "Venda de lana pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Recuperación rápida sin downtime al hacer misiones en solitario.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
+                { id = 250074, name = "Pechuga de oso",            minCount = 10, category = "Comida",       effect = "+10 Fuerza (15 min) y +5% EXP", tip = "+10 Fuerza para optimizar poder de ataque físico y +5% de experiencia por muertes.", source = "Cocina (175) / Ashenvale Bear", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 2685, name = "Costilla de cerdo suculenta", minCount = 10, category = "Comida",       effect = "+5 Fuerza (15 min) y +5% EXP", tip = "+5 Fuerza para optimizar poder de ataque físico y +5% de experiencia por muertes.", source = "Cocina (175) / Ashenvale Bear", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 3825, name = "Elixir de agilidad menor",    minCount = 3,  category = "Elixir",       effect = "+8 Agilidad durante 1 h",       tip = "+Poder de ataque, esquive y probabilidad de crítico.", source = "Alquimia (140) / Estranguladora", icon = "Interface\\Icons\\inv_potion_93", quality = 1 },
+                { id = 3388, name = "Elixir de sangre de ogro",    minCount = 3,  category = "Elixir",       effect = "+8 Fuerza durante 1 h",         tip = "+Poder de ataque para guerreros, paladines y ferales.", source = "Alquimia (125) / Raíz de tierra", icon = "Interface\\Icons\\inv_potion_20", quality = 1 },
+                { id = 2871, name = "Piedra de afilar pesada",     minCount = 2,  category = "Arma",         effect = "+4 Daño con arma (30 min)",   tip = "Mejora el daño base de tu arma principal.", source = "Herrería (125) / Piedra pesada", icon = "Interface\\Icons\\inv_stone_sharpeningstone_03", quality = 1 },
             },
             ["CASTER_DPS"] = {
                 { id = 3827,  name = "Poción de maná",              minCount = 6,  category = "Poción",       effect = "+455 a 585 Maná",              tip = "Maná indispensable en mazmorras para no frenar tu rotación de daño.", source = "Alquimia (160) / Corona real", icon = "Interface\\Icons\\inv_potion_76", quality = 1 },
                 { id = 929,   name = "Poción de sanación",          minCount = 5,  category = "Poción",       effect = "+280 a 360 Salud",             tip = "Salud de emergencia para casters frágiles.", source = "Alquimia (110) / Brezoespina", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
-                { id = 3531,  name = "Venda de lana pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Curación sin gastar maná.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
-                { id = 21217, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+6 Maná cada 5 s (15 min)",    tip = "Regeneración de maná activa Mp5 mientras lanzas hechizos en combate.", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
+                { id = 3531,  name = "Venda de lana pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Curación sin gastar maná.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
+                { id = 25954, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+7 Daño Hechizos (15 min) y +5% EXP", tip = "Regeneración de maná y daño mágico (+5% EXP).", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
                 { id = 1708,  name = "Néctar dulce",                minCount = 15, category = "Bebida",       effect = "Restaura 1344 Maná en 24 s",   tip = "Bebida óptima de nivel 25+ según la progresión oficial de Camelot.", source = "Taberneros y vendedores", icon = "Interface\\Icons\\inv_drink_08", quality = 1 },
-                { id = 3383,  name = "Elixir de sabiduría",          minCount = 3,  category = "Elixir",       effect = "+6 Intelecto durante 1 h",     tip = "+90 de maná total y mayor probabilidad de crítico con hechizos.", source = "Alquimia (90) / Marregal", icon = "Interface\\Icons\\inv_potion_05", quality = 1 },
+                { id = 3383,  name = "Elixir de sabiduría",         minCount = 3,  category = "Elixir",       effect = "+6 Intelecto durante 1 h",     tip = "+90 de maná total y mayor probabilidad de crítico con hechizos.", source = "Alquimia (90) / Marregal", icon = "Interface\\Icons\\inv_potion_05", quality = 1 },
             },
             ["HEALER"] = {
                 { id = 3827,  name = "Poción de maná",              minCount = 8,  category = "Poción",       effect = "+455 a 585 Maná",              tip = "Respaldo crítico de maná durante encuentros de jefes largos.", source = "Alquimia (160) / Corona real", icon = "Interface\\Icons\\inv_potion_76", quality = 1 },
                 { id = 929,   name = "Poción de sanación",          minCount = 5,  category = "Poción",       effect = "+280 a 360 Salud",             tip = "Salud propia sin interrumpir los casteos sobre el tanque.", source = "Alquimia (110) / Brezoespina", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
-                { id = 3531,  name = "Venda de lana pesada",         minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Curación secundaria gratuita.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
-                { id = 21217, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+6 Maná cada 5 s (15 min)",    tip = "Mp5 activo continuo para no quedar sin maná en jefes de mazmorra.", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
+                { id = 3531,  name = "Venda de lana pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 301 Salud en 8 s",         tip = "Curación secundaria gratuita.", source = "Primeros auxilios (115) / Paño de lana", icon = "Interface\\Icons\\inv_misc_bandage_19", quality = 1 },
+                { id = 12210, name = "Raptor asado",                minCount = 10, category = "Comida",       effect = "+5 Intelecto (15 min) y +5% EXP", tip = "Más intelecto para no quedar sin maná (+5% EXP).", source = "Cocina (175) / Carne de raptor / Vendedor Hammon Karwn(Arathi 46.4, 47.4)", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
                 { id = 1708,  name = "Néctar dulce",                minCount = 20, category = "Bebida",       effect = "Restaura 1344 Maná en 24 s",   tip = "Bebida óptima de nivel 25+ (o Zumo de melón a nivel 15).", source = "Taberneros y vendedores", icon = "Interface\\Icons\\inv_drink_08", quality = 1 },
-                { id = 3383,  name = "Elixir de sabiduría",          minCount = 3,  category = "Elixir",       effect = "+6 Intelecto durante 1 h",     tip = "Aumenta la reserva de maná disponible en combates intensos.", source = "Alquimia (90) / Marregal", icon = "Interface\\Icons\\inv_potion_05", quality = 1 },
+                { id = 3383,  name = "Elixir de sabiduría",         minCount = 3,  category = "Elixir",       effect = "+6 Intelecto durante 1 h",     tip = "Aumenta la reserva de maná disponible en combates intensos.", source = "Alquimia (90) / Marregal", icon = "Interface\\Icons\\inv_potion_05", quality = 1 },
             },
         },
     },
@@ -295,13 +377,13 @@ local CONSUMABLES_DB = {
     -- ---------------------------------------------------------------------
     ["35-49"] = {
         name = "Nivel 35-49 · Leveleo Avanzado y Mazmorras",
-        short = "Nv. 35-49 (Avanzado)",
+        short = "35-49 (Avanzado)",
         isRaid = false,
         roles = {
             ["TANK"] = {
                 { id = 3928,  name = "Poción de sanación mayor",   minCount = 5,  category = "Poción",       effect = "+700 a 900 Salud",             tip = "Gran inyección de salud en mazmorras como Zul'Farrak y Maraudon.", source = "Alquimia (230) / Solea", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 6451,  name = "Venda de seda pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 640 Salud en 8 s",         tip = "Sana una gran porción de vida en segundos.", source = "Primeros auxilios (180) / Paño de seda", icon = "Interface\\Icons\\inv_misc_bandage_01", quality = 1 },
-                { id = 20074, name = "Guiso pesado de crocolisco",  minCount = 10, category = "Comida (Buf)",  effect = "+12 Aguante y +12 Espíritu",   tip = "Buff sustancial de salud y regeneración pasiva.", source = "Cocina (200) / Carne de crocolisco", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 20074, name = "Guiso pesado de crocolisco",  minCount = 10, category = "Comida (Buf)",  effect = "+12 Aguante (15 min) y +5% EXP", tip = "Buff sustancial de salud (+5% EXP).", source = "Cocina (200) / Carne de crocolisco", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
                 { id = 3826,  name = "Elixir de fortaleza",         minCount = 3,  category = "Elixir",       effect = "+120 Salud máxima (1 h)",      tip = "+1200 puntos de salud acumulables con otros elixires.", source = "Alquimia (175) / Espinela dorada", icon = "Interface\\Icons\\inv_potion_43", quality = 1 },
                 { id = 3389,  name = "Elixir de defensa",           minCount = 3,  category = "Elixir",       effect = "+150 Armadura durante 1 h",    tip = "Mitigación básica obligatoria para tanquear mazmorras 40+.", source = "Alquimia (130) / Vid salvaje", icon = "Interface\\Icons\\inv_potion_24", quality = 1 },
                 { id = 7964,  name = "Piedra de afilar sólida",     minCount = 2,  category = "Arma",         effect = "+6 Daño con arma (30 min)",   tip = "Aumento de DPS y generación de amenaza en área.", source = "Herrería (200) / Piedra sólida", icon = "Interface\\Icons\\inv_stone_sharpeningstone_04", quality = 1 },
@@ -309,7 +391,7 @@ local CONSUMABLES_DB = {
             ["MELEE_DPS"] = {
                 { id = 3928,  name = "Poción de sanación mayor",   minCount = 5,  category = "Poción",       effect = "+700 a 900 Salud",             tip = "Salud de emergencia en combates difíciles de mundo abierto o mazmorra.", source = "Alquimia (230) / Solea", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 6451,  name = "Venda de seda pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 640 Salud en 8 s",         tip = "Recuperación veloz de vida entre pulls.", source = "Primeros auxilios (180) / Paño de seda", icon = "Interface\\Icons\\inv_misc_bandage_01", quality = 1 },
-                { id = 20074, name = "Guiso pesado de crocolisco",  minCount = 10, category = "Comida (Buf)",  effect = "+12 Aguante y +12 Espíritu",   tip = "Buff de supervivencia para mitigar daño de área.", source = "Cocina (200) / Carne de crocolisco", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
+                { id = 20074, name = "Guiso pesado de crocolisco",  minCount = 10, category = "Comida (Buf)",  effect = "+12 Aguante (15 min) y +5% EXP", tip = "Buff de supervivencia (+5% EXP) para mitigar daño de área.", source = "Cocina (200) / Carne de crocolisco", icon = "Interface\\Icons\\inv_misc_food_15", quality = 1 },
                 { id = 8949,  name = "Elixir de agilidad superior", minCount = 3,  category = "Elixir",       effect = "+15 Agilidad durante 1 h",     tip = "Aumenta notablemente el crítico y poder de ataque de pícaros, cazadores y ferales.", source = "Alquimia (210) / Mostacho de Khadgar", icon = "Interface\\Icons\\inv_potion_93", quality = 1 },
                 { id = 3382,  name = "Elixir de fuerza de ogro",    minCount = 3,  category = "Elixir",       effect = "+15 Fuerza durante 1 h",       tip = "Poder de ataque contundente para guerreros y paladines.", source = "Alquimia (150) / Espinela dorada", icon = "Interface\\Icons\\inv_potion_20", quality = 1 },
                 { id = 7964,  name = "Piedra de afilar sólida",     minCount = 2,  category = "Arma",         effect = "+6 Daño con arma (30 min)",   tip = "Aumenta el daño de tus ataques blancos.", source = "Herrería (200) / Piedra sólida", icon = "Interface\\Icons\\inv_stone_sharpeningstone_04", quality = 1 },
@@ -318,7 +400,7 @@ local CONSUMABLES_DB = {
                 { id = 6149,  name = "Poción de maná mayor",        minCount = 6,  category = "Poción",       effect = "+700 a 900 Maná",              tip = "Recuperación de maná de combate para rematar élites y jefes.", source = "Alquimia (205) / Solea", icon = "Interface\\Icons\\inv_potion_76", quality = 1 },
                 { id = 3928,  name = "Poción de sanación mayor",   minCount = 5,  category = "Poción",       effect = "+700 a 900 Salud",             tip = "Salud de emergencia.", source = "Alquimia (230) / Solea", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 6451,  name = "Venda de seda pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 640 Salud en 8 s",         tip = "Ahorra maná curándote con vendas.", source = "Primeros auxilios (180) / Paño de seda", icon = "Interface\\Icons\\inv_misc_bandage_01", quality = 1 },
-                { id = 21217, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+6 Maná cada 5 s (15 min)",    tip = "Mp5 pasivo continuo mientras lanzas hechizos mágicos.", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
+                { id = 25954, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+7 Daño Hechizos (15 min)",    tip = "Daño adicional al lanzar hechizos mágicos.", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
                 { id = 1645,  name = "Zumo de baya lunar",          minCount = 15, category = "Bebida",       effect = "Restaura 1992 Maná en 27 s",   tip = "Bebida de nivel 35+ según la progresión de Camelot.", source = "Taberneros y vendedores", icon = "Interface\\Icons\\inv_drink_09", quality = 1 },
                 { id = 9179,  name = "Elixir de intelecto mayor",   minCount = 3,  category = "Elixir",       effect = "+25 Intelecto durante 1 h",    tip = "+375 maná máximo y mayor crítico mágico.", source = "Alquimia (275) / Loto ciego", icon = "Interface\\Icons\\inv_potion_10", quality = 1 },
             },
@@ -326,7 +408,7 @@ local CONSUMABLES_DB = {
                 { id = 6149,  name = "Poción de maná mayor",        minCount = 8,  category = "Poción",       effect = "+700 a 900 Maná",              tip = "Maná indispensable durante combates prolongados en mazmorras.", source = "Alquimia (205) / Solea", icon = "Interface\\Icons\\inv_potion_76", quality = 1 },
                 { id = 3928,  name = "Poción de sanación mayor",   minCount = 5,  category = "Poción",       effect = "+700 a 900 Salud",             tip = "Autodefensa rápida.", source = "Alquimia (230) / Solea", icon = "Interface\\Icons\\inv_potion_52", quality = 1 },
                 { id = 6451,  name = "Venda de seda pesada",        minCount = 10, category = "Primeros Aux.", effect = "Sana 640 Salud en 8 s",         tip = "Soporte secundario gratuito.", source = "Primeros auxilios (180) / Paño de seda", icon = "Interface\\Icons\\inv_misc_bandage_01", quality = 1 },
-                { id = 21217, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+6 Maná cada 5 s (15 min)",    tip = "Mp5 activo clave para no secarte en jefes largos.", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
+                { id = 25954, name = "Delicia de sabiola",          minCount = 10, category = "Comida (Buf)",  effect = "+7 Daño Hechizos (15 min)",    tip = "Mp5 activo clave para no secarte en jefes largos.", source = "Cocina (175) / Sabiola superior", icon = "Interface\\Icons\\inv_misc_fish_21", quality = 1 },
                 { id = 1645,  name = "Zumo de baya lunar",          minCount = 20, category = "Bebida",       effect = "Restaura 1992 Maná en 27 s",   tip = "Bebida óptima de nivel 35+ para recargar al grupo sin perder tiempo.", source = "Taberneros y vendedores", icon = "Interface\\Icons\\inv_drink_09", quality = 1 },
                 { id = 3826,  name = "Elixir de fortaleza",         minCount = 3,  category = "Elixir",       effect = "+120 Salud máxima (1 h)",      tip = "Evita que un add errante te mate de un golpe.", source = "Alquimia (175) / Espinela dorada", icon = "Interface\\Icons\\inv_potion_43", quality = 1 },
             },
@@ -338,7 +420,7 @@ local CONSUMABLES_DB = {
     -- ---------------------------------------------------------------------
     ["50-59"] = {
         name = "Nivel 50-59 · Pre-Raid y Mazmorras de Nivel 60",
-        short = "Nv. 50-59 (Pre-Raid)",
+        short = "50-59 (Pre-Raid)",
         isRaid = false,
         roles = {
             ["TANK"] = {
@@ -382,7 +464,7 @@ local CONSUMABLES_DB = {
     -- ---------------------------------------------------------------------
     ["60"] = {
         name = "Nivel 60 · Preparación de Banda (Raids de Nivel 60)",
-        short = "Nv. 60 (Raid)",
+        short = "60 (Raid)",
         isRaid = true,
         roles = {
             ["TANK"] = {
@@ -556,6 +638,115 @@ local function ResolveLadderItem(ladder, level)
     return ladder[#ladder]
 end
 
+--- Recomienda la comida óptima para el nivel, clase y especialización activa basándose en los StatWeights (EP)
+function RaidPrep:GetBestFoodForSpec(effLevel, playerClass, specKey, role)
+    local weights, specDisplayName
+    if ns.GetStatWeights then
+        weights, specDisplayName = ns.GetStatWeights(playerClass, specKey)
+    end
+
+    local bestFood = nil
+    local maxScore = -1
+
+    for _, food in ipairs(ALL_CAMELOT_FOODS) do
+        if effLevel >= food.minLevel then
+            local score = 0
+            if weights and food.stats then
+                for statKey, statVal in pairs(food.stats) do
+                    local w = weights[statKey] or 0
+                    -- Si el alimento otorga MP5 y la spec no tiene peso explícito de MP5, inferir de Sanación o Hechizos
+                    if statKey == "MP5" and w == 0 then
+                        if weights.HEAL and weights.HEAL > 0 then
+                            w = weights.HEAL * 3.0
+                        elseif weights.SPELL_POWER and weights.SPELL_POWER > 0 then
+                            w = weights.SPELL_POWER * 1.5
+                        end
+                    end
+                    score = score + (statVal * w)
+                end
+            end
+
+            -- En rol Tanque, premiar supervivencia (Aguante) para garantizar solidez
+            if role == "TANK" and food.stats and food.stats.STA then
+                score = score + (food.stats.STA * 1.5)
+            end
+
+            -- En fase de leveleo (nivel < 55), priorizar alimentos que conceden +5% EXP extra
+            if effLevel < 55 and food.effect and food.effect:find("5%% EXP") then
+                score = score + 5.0
+            end
+
+            if score > maxScore then
+                maxScore = score
+                bestFood = food
+            elseif score == maxScore and bestFood then
+                -- Desempate por mayor nivel requerido (tier superior)
+                if food.minLevel > bestFood.minLevel then
+                    bestFood = food
+                end
+            end
+        end
+    end
+
+    if bestFood and maxScore > 0 then
+        local res = {}
+        for k, v in pairs(bestFood) do res[k] = v end
+        if specDisplayName and maxScore > 0 then
+            res.tip = (bestFood.tip or "") .. string.format(" [Óptimo para %s: %.1f EP]", specDisplayName, maxScore)
+        end
+        return res
+    end
+
+    -- Fallback si no hay pesos o puntuación positiva
+    local foodLadder = (role == "HEALER" and CAMELOT_FOOD_HEALER)
+        or (role == "CASTER_DPS" and CAMELOT_FOOD_CASTER)
+        or (role == "TANK" and CAMELOT_FOOD_TANK)
+        or CAMELOT_FOOD_MELEE
+    return ResolveLadderItem(foodLadder, effLevel)
+end
+
+-- =========================================================================
+-- ESCÁNER DINÁMICO DE TOOLTIP EN TIEMPO REAL (WOW FOREVER SERVIDOR / CLIENTE)
+-- =========================================================================
+local prepScanTooltip = nil
+local function GetPrepScanTooltip()
+    if not prepScanTooltip then
+        prepScanTooltip = CreateFrame("GameTooltip", "AwakeningPrepScanner", UIParent, "GameTooltipTemplate")
+        prepScanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    end
+    return prepScanTooltip
+end
+
+--- Extrae el efecto real y actualizado de un consumible desde los datos en vivo del cliente/servidor
+function RaidPrep:GetDynamicItemEffect(itemID)
+    if not itemID or itemID == 0 then return nil end
+    local tt = GetPrepScanTooltip()
+    tt:ClearLines()
+    local ok = pcall(tt.SetItemByID, tt, itemID)
+    if not ok then
+        pcall(tt.SetHyperlink, tt, "item:" .. itemID)
+    end
+    for i = 1, tt:NumLines() do
+        local line = _G["AwakeningPrepScannerTextLeft" .. i]
+        if line then
+            local text = line:GetText()
+            if text and text ~= "" then
+                local lower = text:lower()
+                -- Buscar la línea donde se especifica el beneficio / Well Fed / EXP
+                if lower:find("well fed") or lower:find("bien alimentado") or lower:find("experience") or lower:find("experiencia") then
+                    return text
+                elseif lower:find("use:") or lower:find("uso:") then
+                    local cleaned = text:match("^[Uu]se:%s*(.+)") or text:match("^[Uu]so:%s*(.+)")
+                    if cleaned and (cleaned:lower():find("well fed") or cleaned:lower():find("gain") or cleaned:lower():find("obten") or cleaned:lower():find("aumenta")) then
+                        return cleaned
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 function RaidPrep:GetConsumablesList()
     local _, playerClass = UnitClass("player")
     playerClass = (playerClass or "WARRIOR"):upper()
@@ -586,13 +777,9 @@ function RaidPrep:GetConsumablesList()
                     adapted.icon = bestWater.icon or adapted.icon
                     adapted.source = bestWater.source or adapted.source
                 end
-            -- Comidas (Food ladders)
-            elseif adapted.category == "Comida (Buf)" then
-                local foodLadder = (role == "HEALER" and CAMELOT_FOOD_HEALER)
-                    or (role == "CASTER_DPS" and CAMELOT_FOOD_CASTER)
-                    or (role == "TANK" and CAMELOT_FOOD_TANK)
-                    or CAMELOT_FOOD_MELEE
-                local bestFood = ResolveLadderItem(foodLadder, effLevel)
+            -- Comidas (Food ladders adaptadas por StatWeights de la clase y especialización)
+            elseif adapted.category == "Comida (Buf)" or adapted.category == "Comida de Raid" then
+                local bestFood = RaidPrep:GetBestFoodForSpec(effLevel, playerClass, activeSpec and activeSpec.key, role)
                 if bestFood then
                     adapted.id = bestFood.id
                     adapted.name = bestFood.name
@@ -641,6 +828,12 @@ function RaidPrep:GetConsumablesList()
                         if bestBandage.quality then adapted.quality = bestBandage.quality end
                     end
                 end
+            end
+
+            -- Si el cliente del juego tiene en caché los datos en vivo del objeto, extraer el efecto real de WoW Forever
+            local liveEffect = self:GetDynamicItemEffect(adapted.id)
+            if liveEffect then
+                adapted.effect = liveEffect
             end
 
             table.insert(list, adapted)
@@ -887,7 +1080,7 @@ function RaidPrep:Build(parent)
     modeBtn:SetPoint("LEFT", controls, "LEFT", 0, 0)
     modeBtn:SetWidth(228)
     modeBtn:SetHeight(20)
-    modeBtn:SetText("Modo: Leveleo")
+    modeBtn:SetText("Leveleo")
     containerFrame.modeBtn = modeBtn
 
     local modeArrow = modeBtn:CreateTexture(nil, "OVERLAY")
@@ -981,31 +1174,28 @@ function RaidPrep:Build(parent)
         sel:Hide()
         row.selection = sel
 
-        -- Columna 1: Icono + Nombre del Consumible
+        -- Columna 1: Icono + Nombre del Consumible (ocupa todo el ancho hasta Inventario)
         local icon = row:CreateTexture(nil, "ARTWORK")
         icon:SetSize(16, 16)
         icon:SetPoint("LEFT", row, "LEFT", 4, 0)
-        icon:SetTexture("Interface\Icons\inv_potion_52")
+        icon:SetTexture("Interface\\Icons\\inv_potion_52")
         row.icon = icon
 
         local nameLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         nameLabel:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-        nameLabel:SetPoint("RIGHT", row, "LEFT", 218, 0)
+        nameLabel:SetPoint("RIGHT", row, "RIGHT", -150, 0)
         nameLabel:SetJustifyH("LEFT")
         nameLabel:SetWordWrap(false)
         row.nameLabel = nameLabel
 
-        -- Columna 2: Categoría / Efecto
+        -- Columna 2 (anteriormente Categoría / Efecto): Oculta en la fila visual, disponible en tooltip
         local catLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        catLabel:SetPoint("LEFT", row, "LEFT", 222, 0)
-        catLabel:SetPoint("RIGHT", row, "LEFT", 338, 0)
-        catLabel:SetJustifyH("LEFT")
-        catLabel:SetWordWrap(false)
+        catLabel:Hide()
         row.catLabel = catLabel
 
-        -- Columna 3: Estado en Inventario (Semáforo)
+        -- Columna 2 visual (anteriormente 3): Estado en Inventario (Semáforo)
         local statusLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        statusLabel:SetPoint("LEFT", row, "LEFT", 342, 0)
+        statusLabel:SetPoint("LEFT", row, "RIGHT", -146, 0)
         statusLabel:SetPoint("RIGHT", row, "RIGHT", -6, 0)
         statusLabel:SetJustifyH("RIGHT")
         statusLabel:SetWordWrap(false)
@@ -1626,9 +1816,10 @@ function RaidPrep:UpdateConsumables()
             local displayName = link or (qc .. (name or itemData.name) .. "|r")
             row.nameLabel:SetText(string.format("%s |cFF888888(x%d)|r", displayName, itemData.minCount))
 
-            -- Categoría / Efecto
-            local effShort = itemData.effect or itemData.category or "Consumible"
-            row.catLabel:SetText("|cFF00FFCC" .. effShort .. "|r")
+            -- Categoría / Efecto (oculto en la lista de consumibles; disponible en tooltip)
+            if row.catLabel then
+                row.catLabel:Hide()
+            end
 
             -- Estado semafórico
             if isReady then
@@ -1654,7 +1845,7 @@ function RaidPrep:UpdateConsumables()
     if containerFrame then
         local pLvl = UnitLevel("player") or 1
         local modeText = previewRaidMode and "Modo: Banda / Raid (Nv. 60)"
-            or (pLvl >= 60 and "Modo: Banda / Raid (Nv. 60)" or ("Modo: Leveleo (" .. bracketData.short .. ")"))
+            or (pLvl >= 60 and "Banda/Raid (60)" or ("Leveleo (" .. bracketData.short .. ")"))
         if containerFrame.modeBtn then
             containerFrame.modeBtn:SetText(modeText)
         end
@@ -1671,7 +1862,7 @@ function RaidPrep:UpdateConsumables()
 
     if mainFrame and mainFrame.heroTitle then
         mainFrame.heroTitle:SetText(string.format(
-            "|cFFFFD100Preparación %s (Nv. %d)|r · |cFFFFFFFF%d/%d (%d%%)|r",
+            "|cFFFFD100Preparación %s (%d)|r · |cFFFFFFFF%d/%d (%d%%)|r",
             localizedClass,
             playerLevel,
             readyCount,
@@ -1719,6 +1910,9 @@ function RaidPrep:SelectConsumable(itemData)
     local nameStr = link or itemData.name or name or ("Objeto #" .. itemData.id)
     local q = quality or itemData.quality or 1
 
+    local dynEffect = self:GetDynamicItemEffect(itemData.id)
+    local effDisplay = dynEffect or itemData.effect or "Mejora de estadísticas"
+
     if mainFrame.detailTitle and mainFrame.detailText then
         mainFrame.detailTitle:SetText(string.format("%s · |cFFFFD100%s|r", nameStr, itemData.category or "Consumible"))
 
@@ -1728,7 +1922,7 @@ function RaidPrep:SelectConsumable(itemData)
                 name = nameStr,
                 quality = q,
                 count = itemData.minCount,
-                desc = string.format("Efecto: %s · Cantidad requerida: %d", itemData.effect or "Mejora", itemData.minCount),
+                desc = string.format("Efecto: %s · Cantidad requerida: %d", effDisplay, itemData.minCount),
                 extraLines = {
                     { text = "Por qué se recomienda: " .. (itemData.tip or "Consumible óptimo para tu rol"), r = 0.5, g = 0.9, b = 1, wrap = true },
                     { text = "Inventario: " .. statusStr, r = 1, g = 0.82, b = 0, wrap = false }
@@ -1740,7 +1934,7 @@ function RaidPrep:SelectConsumable(itemData)
         end
 
         mainFrame.detailText:SetText(
-            "Efecto Óptimo: |cFF00FF00" .. (itemData.effect or "Mejora de estadísticas") .. "|r  ·  Categoría: |cFFFFFFFF" .. (itemData.category or "Consumible") .. "|r\n" ..
+            "Efecto Óptimo: |cFF00FF00" .. effDisplay .. "|r  ·  Categoría: |cFFFFFFFF" .. (itemData.category or "Consumible") .. "|r\n" ..
             "Por qué se recomienda: |cFFFFD100" .. (itemData.tip or "Recomendado para máxima eficiencia en tu rol.") .. "|r\n" ..
             "Cómo obtenerlo: |cFF00FFCC" .. (itemData.source or "Alquimia / Cocina / Subasta / Vendedores de suministros") .. "|r\n" ..
             "Estado en bolsas: " .. statusStr

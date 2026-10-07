@@ -82,6 +82,127 @@ function ns.QueueOutOfCombat(task)
 end
 
 -- =========================================================================
+-- UTILIDADES DE NAVEGACIÓN Y COORDENADAS FÍSICAS (Adaptado de Mapzeroth)
+-- =========================================================================
+ns.MAP_SCALE = 1000 -- Factor de escala para distancia aproximada en mapa 2D
+
+-- Atan2 compatible con Lua 5.1
+function ns.Atan2(y, x)
+    if math.atan2 then
+        return math.atan2(y, x)
+    end
+    if x > 0 then
+        return math.atan(y / x)
+    elseif x < 0 and y >= 0 then
+        return math.atan(y / x) + math.pi
+    elseif x < 0 and y < 0 then
+        return math.atan(y / x) - math.pi
+    elseif x == 0 and y > 0 then
+        return math.pi / 2
+    elseif x == 0 and y < 0 then
+        return -math.pi / 2
+    end
+    return 0
+end
+
+-- Obtiene la posición física en el mundo 3D en yardas (world position) a partir de coordenadas de mapa
+function ns.GetWorldPosition(mapID, x, y)
+    if not mapID or not x or not y then return nil end
+    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then return nil end
+
+    -- Si las coordenadas están en formato porcentaje 0..100, normalizar a 0..1
+    local normX = (x > 1) and (x / 100) or x
+    local normY = (y > 1) and (y / 100) or y
+
+    local mapPos = CreateVector2D(normX, normY)
+    if not mapPos then return nil end
+
+    local ok, _, worldPos = pcall(C_Map.GetWorldPosFromMapPos, mapID, mapPos)
+    if ok and worldPos then
+        return worldPos
+    end
+    return nil
+end
+
+-- Calcula la distancia en yardas reales y el rumbo (heading) entre dos puntos
+function ns.GetDistanceAndHeading(fromMap, fromX, fromY, toMap, toX, toY)
+    if not fromMap or not fromX or not fromY or not toMap or not toX or not toY then
+        return nil, nil
+    end
+
+    local fromWorld = ns.GetWorldPosition(fromMap, fromX, fromY)
+    local toWorld = ns.GetWorldPosition(toMap, toX, toY)
+
+    local dx, dy
+
+    if fromWorld and toWorld then
+        dx = toWorld.x - fromWorld.x
+        dy = toWorld.y - fromWorld.y
+    elseif fromMap == toMap then
+        local fX = (fromX > 1) and (fromX / 100) or fromX
+        local fY = (fromY > 1) and (fromY / 100) or fY
+        local tX = (toX > 1) and (toX / 100) or toX
+        local tY = (toY > 1) and (toY / 100) or toY
+        dx = (tX - fX) * ns.MAP_SCALE
+        dy = (tY - fY) * ns.MAP_SCALE
+    else
+        return nil, nil
+    end
+
+    local distance = math.sqrt(dx * dx + dy * dy)
+    local heading = ns.Atan2(dy, dx)
+    return distance, heading
+end
+
+-- Formatea una distancia en yardas o kilómetros con formato limpio
+function ns.FormatDistance(distanceYards)
+    if not distanceYards then return "--" end
+    if distanceYards >= 1000 then
+        return string.format("%.1f km", distanceYards / 1000)
+    end
+    return string.format("%.0f yd", distanceYards)
+end
+
+-- Captura la posición actual del jugador
+function ns.GetPlayerLocation()
+    if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then
+        return nil, "API de mapa no disponible"
+    end
+    local mapID = C_Map.GetBestMapForUnit("player")
+    if not mapID then return nil, "Mapa actual no disponible" end
+
+    local pos = C_Map.GetPlayerMapPosition(mapID, "player")
+    if not pos then return nil, "Posición en mapa no disponible" end
+
+    local x, y = pos:GetXY()
+    return {
+        mapID = mapID,
+        x = x * 100,
+        y = y * 100,
+        xNorm = x,
+        yNorm = y,
+    }
+end
+
+-- Actualiza la ubicación de la Piedra de Hogar en la base de datos (Inspirado en Mapzeroth)
+function ns.UpdateHearthstoneLocation()
+    local bindLoc = (GetBindLocation and GetBindLocation()) or (GetHearthstoneLocation and GetHearthstoneLocation())
+    if not bindLoc or bindLoc == "" then return end
+
+    local loc = ns.GetPlayerLocation()
+    if not loc then return end
+
+    _G.AwakeningDB = _G.AwakeningDB or {}
+    _G.AwakeningDB.hearthstone = {
+        mapID = loc.mapID,
+        x = loc.x,
+        y = loc.y,
+        locationName = bindLoc,
+        setAt = time and time() or 0,
+    }
+end
+
+-- =========================================================================
 -- DETECCIÓN Y NORMALIZACIÓN DE PROFESIONES
 -- =========================================================================
 local PROFESSION_MAP = {
@@ -222,6 +343,8 @@ end
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
 initFrame:RegisterEvent("PLAYER_LOGIN")
+initFrame:RegisterEvent("HEARTHSTONE_BOUND")
+initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 initFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON then
@@ -232,6 +355,7 @@ initFrame:SetScript("OnEvent", function(self, event, arg1)
         db.soundAlerts = (db.soundAlerts == nil) and true or db.soundAlerts
         db.filterFarmingByProfessions = (db.filterFarmingByProfessions == nil) and true or db.filterFarmingByProfessions
         db.showOldSecrets = (db.showOldSecrets == nil) and false or db.showOldSecrets
+        db.autoAdvanceSteps = (db.autoAdvanceSteps == nil) and true or db.autoAdvanceSteps
         db.activeRoute = db.activeRoute or nil
         db.activeStep = db.activeStep or 1
         ns.db = db
@@ -241,6 +365,14 @@ initFrame:SetScript("OnEvent", function(self, event, arg1)
         _G.AwakeningData.Guides = ns.Data.Secrets
     elseif event == "PLAYER_LOGIN" then
         ns.Print(string.format("v%s cargado. Usa %s o %s para abrir el centro de control.", ns.VERSION, ns.Gold("/awakening"), ns.Gold("/awk")))
+    elseif event == "HEARTHSTONE_BOUND" then
+        ns.UpdateHearthstoneLocation()
+        local bind = (GetBindLocation and GetBindLocation()) or "Taberna"
+        ns.Print(string.format("Piedra de Hogar vinculada en |cFF00FFCC%s|r.", bind))
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        if _G.AwakeningDB and not _G.AwakeningDB.hearthstone then
+            ns.UpdateHearthstoneLocation()
+        end
     end
 end)
 
@@ -249,11 +381,16 @@ end)
 -- =========================================================================
 SLASH_AWAKENING1 = "/awakening"
 SLASH_AWAKENING2 = "/awk"
+SLASH_AWAKENING3 = "/ac"
 
 SlashCmdList["AWAKENING"] = function(msg)
     local cmd = (msg or ""):trim():lower()
     
-    if cmd == "hud" then
+    if cmd == "skills" or cmd == "habilidades" or cmd == "trainer" or cmd == "entrenador" then
+        if ns.SkillsUI then
+            ns.SkillsUI:Toggle()
+        end
+    elseif cmd == "hud" then
         if ns.GuideHUD then
             ns.GuideHUD:Toggle()
         end
@@ -277,6 +414,33 @@ SlashCmdList["AWAKENING"] = function(msg)
         if ns.MainUI then
             ns.MainUI:OpenTab("guild")
         end
+    elseif cmd:match("^travel%s") or cmd:match("^viaje%s") then
+        local from, to = cmd:match("^%a+%s+(.-)%s*%-%s*(.+)$")
+        if from and to and ns.TravelPlanner then
+            ns.TravelPlanner:PlanAndStart(from, to)
+        else
+            ns.Print("Uso: /awk travel <origen> - <destino> (ej: /awk travel Goldshire - Auberdine)")
+        end
+    elseif cmd == "loc" or cmd == "map" or cmd == "coords" or cmd == "pos" then
+        local uiMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        if not uiMapID then
+            ns.Print(ns.Red("No se pudo obtener el uiMapID actual."))
+            return
+        end
+        local mapInfo = C_Map.GetMapInfo and C_Map.GetMapInfo(uiMapID)
+        local mapName = mapInfo and mapInfo.name or "Desconocido"
+        local parentID = mapInfo and mapInfo.parentMapID or 0
+        local pos = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(uiMapID, "player")
+        local px, py = pos and pos:GetXY() or 0, 0
+        local x = math.floor((px or 0) * 1000 + 0.5) / 10
+        local y = math.floor((py or 0) * 1000 + 0.5) / 10
+        local zone = GetZoneText and GetZoneText() or ""
+        local subZone = GetSubZoneText and GetSubZoneText() or ""
+
+        ns.Print(string.format("|cFFFFD100[Inspector de Mapa]|r uiMapID = |cFF00FFFF%d|r (%s, Padre: %d)", uiMapID, mapName, parentID))
+        ns.Print(string.format("Zona: |cFFFFFFFF%s|r · Subzona: |cFFFFFFFF%s|r", zone, subZone ~= "" and subZone or "(ninguna)"))
+        ns.Print(string.format("Coordenadas: |cFF00FF00x = %.1f, y = %.1f|r", x, y))
+        ns.Print(string.format("Formato Lua: |cFF88AAFF{ uiMapID = %d, x = %.1f, y = %.1f }|r", uiMapID, x, y))
     elseif cmd == "arrow" then
         if ns.GuideHUD then
             ns.GuideHUD:PositionTomTomArrow()

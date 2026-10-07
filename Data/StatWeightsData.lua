@@ -1035,7 +1035,7 @@ local function ProcessTooltipItem(selfTooltip, itemLinkOrID)
             local pctUpgrade, _, _, eqScore = ns.GetSlotUpgrade(slotName, itemLinkOrID, playerClass, specKey)
             if pctUpgrade and pctUpgrade > 0 then
                 selfTooltip:AddDoubleLine(
-                    "|cFF00FF00▲ Mejora estimada:|r",
+                    "|cFF00FF00->Mejora estimada:|r",
                     string.format("|cFF00FF00+%.1f%%|r |cFF888888(vs actual %.1f)|r", pctUpgrade, eqScore or 0)
                 )
             end

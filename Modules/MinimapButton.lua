@@ -99,7 +99,11 @@ function MinimapButton:Init()
 
     -- Interacciones de Clic
     btn:SetScript("OnClick", function(self, mouseBtn)
-        if mouseBtn == "RightButton" then
+        if IsShiftKeyDown() then
+            if ns.SkillsUI then
+                ns.SkillsUI:Toggle()
+            end
+        elseif mouseBtn == "RightButton" then
             if ns.GuideHUD then
                 ns.GuideHUD:Toggle()
             end
@@ -117,6 +121,7 @@ function MinimapButton:Init()
         GameTooltip:AddLine(string.format("Versión %s", ns.VERSION or "1.0.0"), 0.6, 0.6, 0.6)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cFFFFD100Clic izquierdo:|r Abrir / Cerrar menú principal", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("|cFFFFD100Mayús + Clic:|r Habilidades de clase y entrenadores", 0.9, 0.9, 0.9)
         GameTooltip:AddLine("|cFFFFD100Clic derecho:|r Alternar HUD de navegación", 0.9, 0.9, 0.9)
         GameTooltip:AddLine("|cFF888888Arrastrar:|r Mover icono alrededor del minimapa", 0.7, 0.7, 0.7)
         GameTooltip:Show()

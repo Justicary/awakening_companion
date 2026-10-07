@@ -7,6 +7,7 @@ local currentGuide = nil
 local currentStepIndex = 1
 local activeTomTomUID = nil
 local lastArrivedSoundTime = 0
+local lastAutoAdvanceTime = 0
 
 -- =========================================================================
 -- INTEGRACIÓN Y CONTROL DEL COMPÁS 3D DE TOMTOM
@@ -94,13 +95,18 @@ end
 -- =========================================================================
 local hud = CreateFrame("Frame", "AwakeningNavHUD", UIParent, "BackdropTemplate")
 hud:SetSize(450, 76) -- Altura base proporcional (se autoajusta dinámicamente al contenido)
-hud:SetPoint("TOP", UIParent, "TOP", 0, -135) -- Justo debajo del compás centrado de TomTom
+hud:SetPoint("TOP", UIParent, "TOP", 0, -165) -- Posición predeterminada debajo del compás 3D de TomTom
 hud:SetMovable(true)
 hud:EnableMouse(true)
 hud:RegisterForDrag("LeftButton")
 hud:SetClampedToScreen(true)
 hud:SetScript("OnDragStart", hud.StartMoving)
-hud:SetScript("OnDragStop", hud.StopMovingOrSizing)
+hud:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    if GuideHUD.SavePosition then
+        GuideHUD:SavePosition()
+    end
+end)
 hud:Hide()
 
 hud:SetBackdrop({
@@ -111,6 +117,84 @@ hud:SetBackdrop({
 })
 hud:SetBackdropColor(0.03, 0.03, 0.05, 0.95)
 hud:SetBackdropBorderColor(0.78, 0.62, 0.22, 0.90) -- Acabado dorado clásico elegante
+
+-- Persistencia de posición del HUD (Inspirado en Mapzeroth)
+function GuideHUD:SavePosition()
+    local point, _, relativePoint, x, y = hud:GetPoint(1)
+    if AwakeningDB then
+        AwakeningDB.hudPosition = {
+            point = point or "TOP",
+            relativePoint = relativePoint or "TOP",
+            x = math.floor(x or 0),
+            y = math.floor(y or -165),
+        }
+    end
+end
+
+function GuideHUD:RestorePosition()
+    local pos = AwakeningDB and AwakeningDB.hudPosition
+    hud:ClearAllPoints()
+    if pos and pos.point then
+        hud:SetPoint(pos.point, UIParent, pos.relativePoint or pos.point, pos.x or 0, pos.y or -165)
+    else
+        hud:SetPoint("TOP", UIParent, "TOP", 0, -165)
+    end
+end
+
+-- Menú contextual con clic derecho en el HUD (Inspirado en Mapzeroth GPSNavigator)
+local hudMenuFrame = CreateFrame("Frame", "AwakeningHUDContextMenu", UIParent, "UIDropDownMenuTemplate")
+local function OpenHUDContextMenu()
+    local hasGuide = currentGuide ~= nil
+    local totalSteps = (hasGuide and currentGuide.steps) and #currentGuide.steps or 1
+    local menuList = {
+        { text = "Awakening HUD", isTitle = true, notCheckable = true },
+        {
+            text = "Paso siguiente",
+            notCheckable = true,
+            disabled = not (hasGuide and currentStepIndex < totalSteps),
+            func = function() GuideHUD:NextStep() end
+        },
+        {
+            text = "Paso anterior",
+            notCheckable = true,
+            disabled = not (hasGuide and currentStepIndex > 1),
+            func = function() GuideHUD:PrevStep() end
+        },
+        {
+            text = "Sincronizar TomTom",
+            notCheckable = true,
+            func = function()
+                GuideHUD:PositionTomTomArrow()
+                if currentGuide and currentGuide.steps and currentGuide.steps[currentStepIndex] then
+                    GuideHUD:SyncTomTomWaypoint(currentGuide.steps[currentStepIndex])
+                end
+            end
+        },
+        {
+            text = "Restablecer posición del HUD",
+            notCheckable = true,
+            func = function()
+                hud:ClearAllPoints()
+                hud:SetPoint("TOP", UIParent, "TOP", 0, -165)
+                GuideHUD:SavePosition()
+            end
+        },
+        {
+            text = "Cerrar HUD",
+            notCheckable = true,
+            func = function() GuideHUD:Hide() end
+        },
+    }
+    if EasyMenu then
+        EasyMenu(menuList, hudMenuFrame, "cursor", 0, 0, "MENU")
+    end
+end
+
+hud:SetScript("OnMouseUp", function(self, button)
+    if button == "RightButton" and not (IsMouselooking and IsMouselooking()) then
+        OpenHUDContextMenu()
+    end
+end)
 
 -- Línea superior sutil dorada de acento premium
 local topAccent = hud:CreateTexture(nil, "ARTWORK")
@@ -139,66 +223,9 @@ stepIcon:SetPoint("BOTTOMRIGHT", iconBox, "BOTTOMRIGHT", -2, 2)
 stepIcon:SetTexture("Interface\\Icons\\inv_misc_questionmark")
 stepIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
--- Muestra el tooltip completo de recompensas (items) del secreto o guía activa
-local function ShowRewardsTooltip(anchorFrame)
-    if not currentGuide then return end
-    GameTooltip:SetOwner(anchorFrame, "ANCHOR_RIGHT")
-    GameTooltip:ClearLines()
-
-    local title = currentGuide.title or "Secreto"
-    GameTooltip:AddLine(string.format("|cFFFFD100%s|r", title), 1, 0.82, 0)
-    
-    if currentGuide.category then
-        local cat = currentGuide.category
-        if currentGuide.level then
-            cat = cat .. " · " .. currentGuide.level
-        end
-        GameTooltip:AddLine(cat, 0.5, 0.8, 1)
-    end
-
-    local rItems = currentGuide.rewardItems
-    if rItems and #rItems > 0 then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFFFFFFFFRecompensas al completar:|r", 1, 1, 1)
-
-        for _, item in ipairs(rItems) do
-            local itemName, itemLink, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(item.itemID)
-            local iconTex = item.icon or itemTexture or "Interface\\Icons\\inv_misc_questionmark"
-            local displayName = itemLink or item.name or ("Objeto #" .. item.itemID)
-            local countStr = (item.count and item.count > 1) and string.format(" |cFFFFFFFF(x%d)|r", item.count) or ""
-            
-            local r, g, b = 0.2, 1, 0.4
-            if itemQuality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[itemQuality] then
-                r, g, b = ITEM_QUALITY_COLORS[itemQuality].r, ITEM_QUALITY_COLORS[itemQuality].g, ITEM_QUALITY_COLORS[itemQuality].b
-            elseif item.quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[item.quality] then
-                r, g, b = ITEM_QUALITY_COLORS[item.quality].r, ITEM_QUALITY_COLORS[item.quality].g, ITEM_QUALITY_COLORS[item.quality].b
-            end
-
-            GameTooltip:AddLine(string.format("|T%s:18:18:0:0:64:64:4:60:4:60|t %s%s", iconTex, displayName, countStr), r, g, b)
-            if item.desc then
-                GameTooltip:AddLine(string.format("   |cFF88DDFF%s|r", item.desc), 0.75, 0.85, 1, true)
-            end
-        end
-
-        if currentGuide.reward then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine(string.format("|cFF888888Resumen: %s|r", currentGuide.reward), 0.6, 0.6, 0.6, true)
-        end
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFF00FF00(Haz clic para vincular en el chat)|r", 0.3, 0.8, 0.5)
-    elseif currentGuide.reward then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(string.format("|cFF00FF00Recompensa:|r %s", currentGuide.reward), 0.2, 1, 0.4, true)
-    else
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFF888888Sin recompensas adicionales registradas.|r", 0.6, 0.6, 0.6)
-    end
-
-    GameTooltip:Show()
-end
-
 -- Tooltip enriquecido al pasar el cursor sobre el icono principal del hito
 iconBox:SetScript("OnEnter", function(self)
+    self:SetBackdropBorderColor(1, 0.88, 0.35, 1)
     if not currentGuide then return end
     local step = currentGuide.steps and currentGuide.steps[currentStepIndex]
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -242,7 +269,10 @@ iconBox:SetScript("OnEnter", function(self)
     end
     GameTooltip:Show()
 end)
-iconBox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+iconBox:SetScript("OnLeave", function(self)
+    self:SetBackdropBorderColor(0.85, 0.70, 0.25, 0.90)
+    GameTooltip:Hide()
+end)
 
 -- Botón Cerrar (X) discreto en la esquina superior derecha
 local btnClose = CreateFrame("Button", nil, hud, "UIPanelCloseButton")
@@ -252,41 +282,12 @@ btnClose:SetScript("OnClick", function()
     GuideHUD:Hide()
 end)
 
--- Botón Catálogo/Guías superior estilizado
-local btnCatalog = CreateFrame("Button", nil, hud, "UIPanelButtonTemplate")
-btnCatalog:SetSize(54, 18)
-btnCatalog:SetPoint("RIGHT", btnClose, "LEFT", -4, 0)
-btnCatalog:SetText("|cFFFFD100Guías|r")
-btnCatalog:SetScript("OnClick", function()
-    if ns.MainUI then
-        ns.MainUI:Toggle()
-    end
-end)
-
--- Botón Recompensas con tooltip dedicado e interacción con chat
-local btnReward = CreateFrame("Button", nil, hud, "UIPanelButtonTemplate")
-btnReward:SetSize(86, 18)
-btnReward:SetPoint("RIGHT", btnCatalog, "LEFT", -4, 0)
-btnReward:SetText("|cFF00FFCCRecompensas|r")
-btnReward:SetScript("OnEnter", function(self)
-    ShowRewardsTooltip(self)
-end)
-btnReward:SetScript("OnLeave", function() GameTooltip:Hide() end)
-btnReward:SetScript("OnClick", function()
-    local rItems = currentGuide and currentGuide.rewardItems
-    if rItems and rItems[1] and rItems[1].itemID then
-        local _, link = GetItemInfo(rItems[1].itemID)
-        if link and ChatEdit_InsertLink then
-            ChatEdit_InsertLink(link)
-        end
-    end
-end)
-
--- Título del paso (Línea 1 - Tipografía dorada limpia)
+-- Título del paso (Línea 1 - Tipografía dorada limpia y legible)
 local titleLabel = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightMedium")
 titleLabel:SetPoint("TOPLEFT", iconBox, "TOPRIGHT", 10, -1)
-titleLabel:SetPoint("RIGHT", btnReward, "LEFT", -6, 0)
+titleLabel:SetPoint("RIGHT", btnClose, "LEFT", -6, 0)
 titleLabel:SetJustifyH("LEFT")
+titleLabel:SetWordWrap(false)
 titleLabel:SetText("Awakening: Guía Activa")
 
 -- Instrucción del paso (Línea 2 - Flujo limpio sin solapamientos)
@@ -369,24 +370,9 @@ local function RenderActiveStep()
         fallbackDist:Hide()
         btnPrev:SetEnabled(false)
         btnNext:SetEnabled(false)
-        if btnReward then btnReward:Hide() end
         GuideHUD:ClearTomTomWaypoint()
         UpdateHUDLayout()
         return
-    end
-
-    -- Control de visibilidad del botón de recompensas y precarga de items
-    if currentGuide.rewardItems or currentGuide.reward then
-        if btnReward then btnReward:Show() end
-        if currentGuide.rewardItems then
-            for _, rItem in ipairs(currentGuide.rewardItems) do
-                if rItem.itemID and GetItemInfo then
-                    GetItemInfo(rItem.itemID)
-                end
-            end
-        end
-    else
-        if btnReward then btnReward:Hide() end
     end
 
     local step = currentGuide.steps[currentStepIndex]
@@ -441,11 +427,11 @@ local function RenderActiveStep()
 end
 
 -- =========================================================================
--- MANEJO DE LLEGADA AL HITO
+-- MANEJO DE LLEGADA AL HITO Y AUTO-AVANCE (Inspirado en Mapzeroth)
 -- =========================================================================
 function GuideHUD:OnStepArrived(fromTomTom)
     local now = GetTime()
-    if (now - lastArrivedSoundTime) > 8 then
+    if (now - lastArrivedSoundTime) > 6 then
         PlaySound(SOUNDKIT and SOUNDKIT.MAP_PING or 3175, "Master")
         lastArrivedSoundTime = now
     end
@@ -453,17 +439,57 @@ function GuideHUD:OnStepArrived(fromTomTom)
     if currentGuide and currentGuide.steps and currentGuide.steps[currentStepIndex] then
         local step = currentGuide.steps[currentStepIndex]
         ns.Print(string.format("|cFF00FF00¡Llegaste al hito!|r %s", ns.Gold(step.title)))
+
+        -- Auto-avance inteligente al siguiente paso (Inspirado en GPSNavigator de Mapzeroth)
+        local autoAdvance = (AwakeningDB and AwakeningDB.autoAdvanceSteps ~= false)
+        if autoAdvance and (now - lastAutoAdvanceTime) > 3.0 and currentStepIndex < #currentGuide.steps then
+            lastAutoAdvanceTime = now
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.9, function()
+                    if currentGuide and currentStepIndex < #currentGuide.steps then
+                        GuideHUD:NextStep()
+                    end
+                end)
+            else
+                GuideHUD:NextStep()
+            end
+        end
     end
 end
+
+-- Detección de transición de mapa en transporte (barcos, zepelines, tranvía, portales)
+hud:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+hud:RegisterEvent("ZONE_CHANGED")
+hud:HookScript("OnEvent", function(self, event)
+    if event == "ZONE_CHANGED_NEW_AREA" or event == "ZONE_CHANGED" then
+        if not currentGuide or not currentGuide.steps or not currentGuide.steps[currentStepIndex] then return end
+        local step = currentGuide.steps[currentStepIndex]
+        local playerMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        local targetMapID = step.uiMapID
+
+        -- Si el jugador ha llegado al mapa destino del paso tras una transición de transporte
+        if targetMapID and playerMapID and playerMapID == targetMapID and (step.fromMapID and step.fromMapID ~= targetMapID) then
+            local now = GetTime()
+            if (now - lastAutoAdvanceTime) > 3.0 and currentStepIndex < #currentGuide.steps then
+                lastAutoAdvanceTime = now
+                ns.Print(string.format("|cFF00FF00Transición completada:|r Llegaste a %s.", ns.Gold(step.title or "destino")))
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(1.0, function()
+                        GuideHUD:NextStep()
+                    end)
+                else
+                    GuideHUD:NextStep()
+                end
+            end
+        end
+    end
+end)
 
 -- =========================================================================
 -- BUCLE ONUPDATE DE RESPALDO (SOLO ACTIVO SI NO EXISTE TOMTOM)
 -- =========================================================================
 local elapsedAccumulator = 0
 hud:SetScript("OnUpdate", function(self, elapsed)
-    -- Si TomTom está activo y sincronizado con este hito, su Crazy Arrow 3D maneja la orientación y distancia
-    if GuideHUD:HasTomTom() and activeTomTomUID then return end
-
     elapsedAccumulator = elapsedAccumulator + elapsed
     if elapsedAccumulator < 0.05 then return end
     elapsedAccumulator = 0
@@ -491,27 +517,54 @@ hud:SetScript("OnUpdate", function(self, elapsed)
     local px, py = pos:GetXY()
     if not px or not py then return end
 
-    local targetX = step.x / 100
-    local targetY = step.y / 100
-    local deltaX = targetX - px
-    local deltaY = targetY - py
+    local targetX = step.x or 0
+    local targetY = step.y or 0
 
-    local distAprox = math.sqrt(deltaX * deltaX + deltaY * deltaY) * 1000
+    -- Cálculo de distancia física en yardas y rumbo usando utilidades de Mapzeroth
+    local distYards, heading
+    if ns.GetDistanceAndHeading then
+        distYards, heading = ns.GetDistanceAndHeading(playerMapID, px * 100, py * 100, targetMapID, targetX, targetY)
+    end
 
-    if distAprox <= 15 then
+    local deltaX = (targetX / 100) - px
+    local deltaY = (targetY / 100) - py
+
+    if not distYards then
+        distYards = math.sqrt(deltaX * deltaX + deltaY * deltaY) * (ns.MAP_SCALE or 1000)
+    end
+
+    -- Actualizar distancia física en tiempo real en la línea meta del HUD
+    local zoneText = step.zoneName or (currentGuide and currentGuide.zoneName) or ""
+    local coordText = (step.x and step.y) and string.format("|cFF00FFCC(%.1f, %.1f)|r", step.x, step.y) or ""
+    local distStr = ns.FormatDistance and ns.FormatDistance(distYards) or string.format("%d yd", math.floor(distYards))
+    local distBadge = (distYards <= 20) and "|cFF00FF00¡En destino!|r" or ("|cFFFFD100" .. distStr .. "|r")
+
+    if zoneText ~= "" and coordText ~= "" then
+        metaLabel:SetText(string.format("|cFFFFCC00%s|r  ·  %s  ·  %s", zoneText, coordText, distBadge))
+    elseif zoneText ~= "" then
+        metaLabel:SetText(string.format("|cFFFFCC00%s|r  ·  %s", zoneText, distBadge))
+    end
+
+    -- Si TomTom está activo y sincronizado, su Crazy Arrow 3D maneja la orientación
+    if GuideHUD:HasTomTom() and activeTomTomUID then
+        fallbackArrow:Hide()
+        fallbackDist:Hide()
+        return
+    end
+
+    local now = GetTime()
+    if distYards <= 20 then
         fallbackDist:SetText("|cFF00FF00¡Llegaste!|r")
-        local now = GetTime()
-        if (now - lastArrivedSoundTime) > 10 then
-            PlaySound(SOUNDKIT and SOUNDKIT.MAP_PING or 3175, "Master")
-            lastArrivedSoundTime = now
+        if (now - lastArrivedSoundTime) > 6 then
+            GuideHUD:OnStepArrived(false)
         end
     else
-        fallbackDist:SetText(string.format("%dm", math.floor(distAprox)))
+        fallbackDist:SetText(distStr)
         fallbackDist:SetTextColor(1, 0.82, 0)
     end
 
     fallbackArrow:SetVertexColor(1, 1, 1, 1)
-    local facing = GetPlayerFacing() or 0
+    local facing = (GetPlayerFacing and GetPlayerFacing()) or 0
     local angle = math.atan2(-deltaX, -deltaY)
     local relativeAngle = angle - facing
     fallbackArrow:SetRotation(relativeAngle)
@@ -536,7 +589,7 @@ function GuideHUD:StartRoute(guideData, guideKey, startStep)
         end
     end
 
-    if not startStep and guideKey and ns.GetSecretProgress then
+    if not startStep and not guideData.isDynamicTravel and guideKey and ns.GetSecretProgress then
         startStep = ns.GetSecretProgress(guideKey)
     end
     currentStepIndex = startStep or 1
@@ -596,6 +649,27 @@ function GuideHUD:IsShown()
     return hud:IsShown()
 end
 
+function GuideHUD:GuideToTrainer(trainer)
+    if not trainer then return end
+    local guideData = {
+        title = "Entrenador: " .. (trainer.name or "Clase"),
+        category = "Entrenador de Clase",
+        zoneName = trainer.zone or "Zona",
+        uiMapID = trainer.uiMapID,
+        steps = {
+            {
+                title = trainer.name or "Entrenador",
+                instruction = string.format("Visita a %s en %s (%.1f, %.1f) para aprender nuevas habilidades de clase.", trainer.name or "tu entrenador", trainer.zone or "", trainer.x or 0, trainer.y or 0),
+                zoneName = trainer.zone,
+                uiMapID = trainer.uiMapID,
+                x = trainer.x,
+                y = trainer.y,
+            }
+        }
+    }
+    self:StartRoute(guideData, "trainer_" .. (trainer.name or "class"), 1)
+end
+
 GuideHUD.frame = hud
 
 -- Vigilancia reactiva para avanzar automáticamente de hito al aceptar/entregar misiones
@@ -620,9 +694,12 @@ secretWatcher:SetScript("OnEvent", function(self, event)
     end
 end)
 
--- Centrar el compás de TomTom al cargar el jugador
+-- Restaurar posición guardada y centrar el compás de TomTom al cargar el jugador
 local initTimer = CreateFrame("Frame")
 initTimer:RegisterEvent("PLAYER_LOGIN")
 initTimer:SetScript("OnEvent", function()
+    if GuideHUD.RestorePosition then
+        GuideHUD:RestorePosition()
+    end
     GuideHUD:PositionTomTomArrow()
 end)
