@@ -514,16 +514,61 @@ local CONSUMABLES_DB = {
     },
 }
 
+-- =========================================================================
+-- DESIGN TOKENS & ESTILOS VISUALES (INSPIRADO EN GUIDEVEWER / CHAIRFACES)
+-- =========================================================================
+local PREP_COLORS = {
+    gold           = { 1, 0.84, 0 },
+    bronze         = { 0.8, 0.65, 0.2 },
+    panelBg        = { 0.08, 0.08, 0.1, 0.95 },
+    panelBorder    = { 0.5, 0.4, 0.2, 1 },
+    headerBg       = { 0.14, 0.11, 0.07, 1 },
+    headerBorder   = { 0.8, 0.65, 0.2, 1 },
+    tabActiveBg    = { 0.35, 0.28, 0.1, 1 },
+    tabInactiveBg  = { 0.12, 0.10, 0.08, 0.9 },
+    tabBorder      = { 0.5, 0.4, 0.2, 0.8 },
+    cardBg         = { 0.06, 0.06, 0.08, 0.88 },
+    cardBorder     = { 0.35, 0.3, 0.18, 0.8 },
+    cardHoverBg    = { 0.16, 0.14, 0.10, 0.95 },
+    cardSelectedBg = { 0.24, 0.19, 0.08, 0.95 },
+    readyGreen     = { 0.15, 0.85, 0.2, 1 },
+    warnAmber      = { 1.0, 0.75, 0.1, 1 },
+    dangerRed      = { 0.95, 0.25, 0.25, 1 },
+}
+
+local CLASS_ICON_COORDS = {
+    ["WARRIOR"] = { 0, 0.25, 0, 0.25 },
+    ["MAGE"]    = { 0.25, 0.496, 0, 0.25 },
+    ["ROGUE"]   = { 0.496, 0.742, 0, 0.25 },
+    ["DRUID"]   = { 0.742, 0.988, 0, 0.25 },
+    ["HUNTER"]  = { 0, 0.25, 0.25, 0.5 },
+    ["SHAMAN"]  = { 0.25, 0.496, 0.25, 0.5 },
+    ["PRIEST"]  = { 0.496, 0.742, 0.25, 0.5 },
+    ["WARLOCK"] = { 0.742, 0.988, 0.25, 0.5 },
+    ["PALADIN"] = { 0, 0.25, 0.5, 0.75 },
+}
+
 -- Variables de Estado
 local containerFrame = nil
 local rowFrames = {}
 local selectedIndex = 1
 local previewRaidMode = false
+RaidPrep.activeFilter = "all" -- "all", "missing", "ready"
+RaidPrep.activeCampFilter = "all" -- "all", "recommended", "conflicted"
+local partyCommsData = {}
+
+-- Variables del Visor de Alta Fidelidad HD (820x540)
+local hdViewerFrame = nil
+local activeHDTab = "consumables"
+local hdLootCards = {}
+local hdCampingCards = {}
+local hdAuditRows = {}
+local auditRowFrames = {}
 
 -- =========================================================================
 -- VARIABLES Y CONSTANTES DE CAMPAMENTO ÓPTIMO (WOW FOREVER)
 -- =========================================================================
-RaidPrep.currentSubMode = "consumables" -- "consumables" o "camping"
+RaidPrep.currentSubMode = "consumables" -- "consumables", "camping" o "audit"
 local _, playerClassInit = UnitClass("player")
 playerClassInit = playerClassInit or "WARRIOR"
 RaidPrep.partyClasses = { playerClassInit, "PRIEST", "MAGE", "ROGUE", "DRUID" }
@@ -564,17 +609,31 @@ local CLASS_COLORS = {
 -- =========================================================================
 -- FUNCIONES AUXILIARES: ACCESO A OBJETOS Y CLASE
 -- =========================================================================
+local function GetItemTextureSafe(itemID, fallback)
+    if not itemID or itemID == 0 then return fallback or "Interface\\Icons\\inv_misc_questionmark" end
+    if C_Item and C_Item.GetItemIconByID then
+        local ok, icon = pcall(C_Item.GetItemIconByID, itemID)
+        if ok and icon then return icon end
+    end
+    if GetItemIcon then
+        local ok, icon = pcall(GetItemIcon, itemID)
+        if ok and icon then return icon end
+    end
+    return fallback or "Interface\\Icons\\inv_misc_questionmark"
+end
+
 local function SafeGetItem(itemID)
     if not itemID or itemID == 0 then return nil end
+    local tex = GetItemTextureSafe(itemID)
     if C_Item and C_Item.GetItemInfo then
-        local ok, n, l, q, _, _, _, _, _, t = pcall(C_Item.GetItemInfo, itemID)
-        if ok and n then return n, l, q, t end
+        local ok, n, l, q = pcall(C_Item.GetItemInfo, itemID)
+        if ok and n then return n, l, q, tex end
     end
     if GetItemInfo then
-        local ok, n, l, q, _, _, _, _, _, t = pcall(GetItemInfo, itemID)
-        if ok and n then return n, l, q, t end
+        local ok, n, l, q = pcall(GetItemInfo, itemID)
+        if ok and n then return n, l, q, tex end
     end
-    return nil
+    return nil, nil, 1, tex
 end
 
 local function GetPlayerBracket(level)
@@ -1017,6 +1076,9 @@ end
 -- =========================================================================
 -- CONSTRUCCIÓN DE LA VISTA PREPARACIÓN
 -- =========================================================================
+-- =========================================================================
+-- CONSTRUCCIÓN DE LA VISTA PREPARACIÓN
+-- =========================================================================
 function RaidPrep:Build(parent)
     if containerFrame then return containerFrame end
 
@@ -1024,70 +1086,159 @@ function RaidPrep:Build(parent)
     containerFrame:SetAllPoints(parent)
     parent.prepContainer = containerFrame
 
-    -- 0. Barra superior de Selección de Sub-Modo (Consumibles vs Campamento Óptimo)
+    -- 0. SubBar con 3 Pestañas Horizontales Estilo Píldora (GuideViewer Style)
     local subBar = CreateFrame("Frame", nil, containerFrame)
     subBar:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 2, 0)
     subBar:SetPoint("TOPRIGHT", containerFrame, "TOPRIGHT", -2, 0)
-    subBar:SetHeight(22)
+    subBar:SetHeight(24)
     containerFrame.subBar = subBar
 
-    local btnSubConsumables = CreateFrame("Button", nil, subBar, "UIPanelButtonTemplate")
-    btnSubConsumables:SetPoint("LEFT", subBar, "LEFT", 0, 0)
-    btnSubConsumables:SetWidth(228)
-    btnSubConsumables:SetHeight(22)
-    btnSubConsumables:SetText("|cFFFFD100|TInterface\\Icons\\inv_potion_52:14:14:0:0|t Consumibles Personales|r")
-    subBar.btnConsumables = btnSubConsumables
-    btnSubConsumables:SetScript("OnClick", function()
-        RaidPrep:SetSubMode("consumables")
-    end)
-    btnSubConsumables:SetScript("OnEnter", function(selfBtn)
-        GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
-        GameTooltip:AddLine("Consumibles Personales y de Banda", 1, 0.82, 0)
-        GameTooltip:AddLine("Elixires, pociones, comidas, frascos, reactivos de clase y vendas recomendados para tu rol y nivel.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    btnSubConsumables:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    local SUB_TABS = {
+        { id = "consumables", text = "Consumibles", icon = "Interface\\Icons\\inv_potion_52" },
+        { id = "camping",     text = "Campamento Óptimo", icon = "Interface\\Icons\\spell_fire_fire" },
+        { id = "audit",       text = "Auditoría Grupo", icon = "Interface\\Icons\\inv_misc_groupneedmore" },
+    }
 
-    local btnSubCamping = CreateFrame("Button", nil, subBar, "UIPanelButtonTemplate")
-    btnSubCamping:SetPoint("LEFT", btnSubConsumables, "RIGHT", 4, 0)
-    btnSubCamping:SetWidth(228)
-    btnSubCamping:SetHeight(22)
-    btnSubCamping:SetText("|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Campamento Óptimo")
-    subBar.btnCamping = btnSubCamping
-    btnSubCamping:SetScript("OnClick", function()
-        RaidPrep:SetSubMode("camping")
-    end)
-    btnSubCamping:SetScript("OnEnter", function(selfBtn)
-        GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
-        GameTooltip:AddLine("Campamento Óptimo (WoW Forever)", 1, 0.82, 0)
-        GameTooltip:AddLine("Configura las clases de tu equipo de 1 a 5 jugadores y sugiere la combinación óptima de mejoras de campamento sin solapar ni cancelar beneficios de clase.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    btnSubCamping:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    containerFrame.subTabs = {}
+    local tabW = (parent:GetWidth() > 0 and (parent:GetWidth() - 8) / #SUB_TABS) or 170
+    for idx, def in ipairs(SUB_TABS) do
+        local btn = CreateFrame("Button", nil, subBar, "BackdropTemplate")
+        btn:SetSize(tabW, 22)
+        btn:SetPoint("LEFT", subBar, "LEFT", (idx - 1) * (tabW + 3), 0)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+        btn:SetBackdropBorderColor(unpack(PREP_COLORS.tabBorder))
+        btn.tabId = def.id
 
-    -- ---------------------------------------------------------------------
-    -- SECCIÓN 1: VISTA DE CONSUMIBLES
-    -- ---------------------------------------------------------------------
-    -- 1. Barra de Controles de Consumibles (Modo Leveleo/Raid y Especialización)
-    local controls = CreateFrame("Frame", nil, containerFrame)
-    controls:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 2, -24)
-    controls:SetPoint("TOPRIGHT", containerFrame, "TOPRIGHT", -2, -24)
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(14, 14)
+        icon:SetPoint("LEFT", 6, 0)
+        icon:SetTexture(def.icon)
+        btn.icon = icon
+
+        local text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        text:SetPoint("LEFT", icon, "RIGHT", 5, 0)
+        text:SetPoint("RIGHT", -4, 0)
+        text:SetJustifyH("LEFT")
+        text:SetText(def.text)
+        btn.text = text
+
+        btn:SetScript("OnClick", function()
+            RaidPrep:SetSubMode(def.id)
+        end)
+
+        btn:SetScript("OnEnter", function(selfBtn)
+            if RaidPrep.currentSubMode ~= selfBtn.tabId then
+                selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+                selfBtn:SetBackdropBorderColor(0.7, 0.55, 0.2, 1)
+            end
+        end)
+        btn:SetScript("OnLeave", function(selfBtn)
+            if RaidPrep.currentSubMode ~= selfBtn.tabId then
+                selfBtn:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+                selfBtn:SetBackdropBorderColor(unpack(PREP_COLORS.tabBorder))
+            end
+        end)
+
+        containerFrame.subTabs[def.id] = btn
+    end
+
+    -- =====================================================================
+    -- 1. VISTA DE CONSUMIBLES PERSONALES (consumablesView)
+    -- =====================================================================
+    local cView = CreateFrame("Frame", nil, containerFrame)
+    cView:SetPoint("TOPLEFT", subBar, "BOTTOMLEFT", 0, -3)
+    cView:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", 0, 0)
+    containerFrame.consumablesView = cView
+
+    -- Barra superior de Controles
+    local controls = CreateFrame("Frame", nil, cView)
+    controls:SetPoint("TOPLEFT", cView, "TOPLEFT", 0, 0)
+    controls:SetPoint("TOPRIGHT", cView, "TOPRIGHT", 0, 0)
     controls:SetHeight(22)
     containerFrame.controls = controls
 
-    -- Botón 1: Modo / Tramo de Nivel
-    local modeBtn = CreateFrame("Button", nil, controls, "UIPanelButtonTemplate")
-    modeBtn:SetPoint("LEFT", controls, "LEFT", 0, 0)
-    modeBtn:SetWidth(228)
-    modeBtn:SetHeight(20)
-    modeBtn:SetText("Leveleo")
-    containerFrame.modeBtn = modeBtn
+    -- Selector de Rama / Especialización
+    local specBtn = CreateFrame("Button", nil, controls, "BackdropTemplate")
+    specBtn:SetPoint("LEFT", controls, "LEFT", 0, 0)
+    specBtn:SetSize(195, 22)
+    specBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    specBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    specBtn:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+    specBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    local specIcon = specBtn:CreateTexture(nil, "ARTWORK")
+    specIcon:SetSize(14, 14)
+    specIcon:SetPoint("LEFT", specBtn, "LEFT", 6, 0)
+    specIcon:SetTexture("Interface\\Icons\\inv_sword_04")
+    specBtn.icon = specIcon
+
+    local specText = specBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    specText:SetPoint("LEFT", specIcon, "RIGHT", 4, 0)
+    specText:SetPoint("RIGHT", specBtn, "RIGHT", -16, 0)
+    specText:SetJustifyH("LEFT")
+    specText:SetText("Rama: ...")
+    specBtn.text = specText
+
+    local specArrow = specBtn:CreateTexture(nil, "OVERLAY")
+    specArrow:SetSize(9, 9)
+    specArrow:SetPoint("RIGHT", specBtn, "RIGHT", -6, 0)
+    specArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
+
+    specBtn:SetScript("OnClick", function(_, mouseBtn)
+        RaidPrep:CycleSpec(mouseBtn == "RightButton")
+    end)
+    specBtn:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+        GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
+        GameTooltip:AddLine("Especialización de Preparación", 1, 0.82, 0)
+        GameTooltip:AddLine("|cFF00FFCCClic Izquierdo:|r Alternar entre ramas de tu clase.", 1, 1, 1, true)
+        GameTooltip:AddLine("|cFFFFFFFFClic Derecho:|r Explorar ramas de todas las clases.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    specBtn:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        GameTooltip:Hide()
+    end)
+    containerFrame.specBtn = specBtn
+
+    -- Selector de Modo: Leveleo vs Banda Nv. 60
+    local modeBtn = CreateFrame("Button", nil, controls, "BackdropTemplate")
+    modeBtn:SetPoint("LEFT", specBtn, "RIGHT", 4, 0)
+    modeBtn:SetSize(195, 22)
+    modeBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    modeBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    modeBtn:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local modeIcon = modeBtn:CreateTexture(nil, "ARTWORK")
+    modeIcon:SetSize(14, 14)
+    modeIcon:SetPoint("LEFT", modeBtn, "LEFT", 6, 0)
+    modeIcon:SetTexture("Interface\\Icons\\inv_misc_map02")
+    modeBtn.icon = modeIcon
+
+    local modeText = modeBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    modeText:SetPoint("LEFT", modeIcon, "RIGHT", 4, 0)
+    modeText:SetPoint("RIGHT", modeBtn, "RIGHT", -16, 0)
+    modeText:SetJustifyH("LEFT")
+    modeText:SetText("Modo: Leveleo")
+    modeBtn.text = modeText
 
     local modeArrow = modeBtn:CreateTexture(nil, "OVERLAY")
-    modeArrow:SetSize(10, 10)
-    modeArrow:SetPoint("RIGHT", modeBtn, "RIGHT", -8, 0)
+    modeArrow:SetSize(9, 9)
+    modeArrow:SetPoint("RIGHT", modeBtn, "RIGHT", -6, 0)
     modeArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
-    modeBtn.arrow = modeArrow
 
     modeBtn:SetScript("OnClick", function()
         local pLvl = UnitLevel("player") or 1
@@ -1099,74 +1250,159 @@ function RaidPrep:Build(parent)
                 ns.Print("Preparación: Restaurado a consumibles de tu nivel actual (|cFF00FFCCLeveleo / Mazmorras|r).")
             end
         else
-            ns.Print("Preparación: Nivel máximo alcanzado (60). Lista optimizada para Bandas / Raids.")
+            ns.Print("Preparación: Nivel 60 alcanzado. Lista optimizada para Bandas.")
         end
         RaidPrep:Update()
     end)
-
     modeBtn:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
         GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
         GameTooltip:AddLine("Modo de Preparación", 1, 0.82, 0)
-        local pLvl = UnitLevel("player") or 1
-        if pLvl < 60 then
-            GameTooltip:AddLine("Clic para alternar entre los consumibles de tu nivel actual y la vista previa de Banda / Raid a nivel 60.", 1, 1, 1, true)
-        else
-            GameTooltip:AddLine("Tu personaje es nivel 60. Mostrando consumibles y frascos óptimos para Banda (Molten Core, Onyxia, BWL).", 1, 1, 1, true)
-        end
+        GameTooltip:AddLine("Alterna entre los consumibles de tu nivel actual y la vista previa de Banda a nivel 60.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
-    modeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-    -- Botón 2: Selector de Especialización
-    local specBtn = CreateFrame("Button", nil, controls, "UIPanelButtonTemplate")
-    specBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    specBtn:SetPoint("LEFT", modeBtn, "RIGHT", 4, 0)
-    specBtn:SetWidth(228)
-    specBtn:SetHeight(20)
-    specBtn:SetText("Rama: ...")
-    containerFrame.specBtn = specBtn
-
-    local specArrow = specBtn:CreateTexture(nil, "OVERLAY")
-    specArrow:SetSize(10, 10)
-    specArrow:SetPoint("RIGHT", specBtn, "RIGHT", -8, 0)
-    specArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
-    specBtn.arrow = specArrow
-
-    specBtn:SetScript("OnClick", function(_, mouseBtn)
-        RaidPrep:CycleSpec(mouseBtn == "RightButton")
+    modeBtn:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        GameTooltip:Hide()
     end)
+    containerFrame.modeBtn = modeBtn
 
-    specBtn:SetScript("OnEnter", function(selfBtn)
+    -- Botón [🔍 Vista HD] (Abre el Visor Dedicado 820x540)
+    local hdBtn = CreateFrame("Button", nil, controls, "BackdropTemplate")
+    hdBtn:SetPoint("RIGHT", controls, "RIGHT", 0, 0)
+    hdBtn:SetSize(115, 22)
+    hdBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    hdBtn:SetBackdropColor(0.2, 0.16, 0.08, 0.95)
+    hdBtn:SetBackdropBorderColor(unpack(PREP_COLORS.headerBorder))
+
+    local hdText = hdBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hdText:SetPoint("CENTER")
+    hdText:SetText("|cFFFFD100|TInterface\\Icons\\inv_misc_spyglass_02:14:14:0:0|t Modo HD|r")
+    hdBtn.text = hdText
+
+    hdBtn:SetScript("OnClick", function()
+        RaidPrep:ToggleHD()
+    end)
+    hdBtn:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.tabActiveBg))
         GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
-        GameTooltip:AddLine("Especialización de Preparación", 1, 0.82, 0)
-        GameTooltip:AddLine("|cFF00FFCCClic Izquierdo:|r Alternar entre ramas de tu clase actual.", 1, 1, 1, true)
-        GameTooltip:AddLine("|cFFFFFFFFClic Derecho:|r Explorar ramas de todas las clases.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Visor de Preparación HD", 1, 0.84, 0)
+        GameTooltip:AddLine("Abre la suite flotante de 820x540 px inspirada en GuideViewer con cuadrícula de 2 columnas y matriz completa.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
-    specBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    hdBtn:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(0.2, 0.16, 0.08, 0.95)
+        GameTooltip:Hide()
+    end)
+    containerFrame.hdBtn = hdBtn
 
-    -- Scroll de Filas de Consumibles
-    local scroll = CreateFrame("ScrollFrame", "AwakeningPrepScroll", containerFrame, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 2, -48)
-    scroll:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", -20, 2)
+    -- Readiness Gauge Bar (Medidor Semafórico)
+    local gaugeFrame = CreateFrame("Frame", nil, cView, "BackdropTemplate")
+    gaugeFrame:SetPoint("TOPLEFT", controls, "BOTTOMLEFT", 0, -4)
+    gaugeFrame:SetPoint("TOPRIGHT", controls, "BOTTOMRIGHT", 0, -4)
+    gaugeFrame:SetHeight(14)
+    gaugeFrame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    gaugeFrame:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+    gaugeFrame:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local gaugeFill = gaugeFrame:CreateTexture(nil, "ARTWORK")
+    gaugeFill:SetPoint("TOPLEFT", gaugeFrame, "TOPLEFT", 1, -1)
+    gaugeFill:SetPoint("BOTTOMLEFT", gaugeFrame, "BOTTOMLEFT", 1, 1)
+    gaugeFill:SetWidth(10)
+    gaugeFill:SetTexture("Interface\\Buttons\\WHITE8x8")
+    gaugeFill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+    gaugeFrame.fill = gaugeFill
+
+    local gaugeText = gaugeFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    gaugeText:SetPoint("CENTER")
+    gaugeText:SetText("0 / 0 Consumibles Listos (0%)")
+    gaugeFrame.text = gaugeText
+    containerFrame.gaugeFrame = gaugeFrame
+
+    -- Barra de Filtros Rápidos (Chips)
+    local filterBar = CreateFrame("Frame", nil, cView)
+    filterBar:SetPoint("TOPLEFT", gaugeFrame, "BOTTOMLEFT", 0, -3)
+    filterBar:SetPoint("TOPRIGHT", gaugeFrame, "BOTTOMRIGHT", 0, -3)
+    filterBar:SetHeight(18)
+    containerFrame.filterBar = filterBar
+
+    local filterDefs = {
+        { id = "all",     text = "Todos" },
+        { id = "missing", text = "Faltantes" },
+        { id = "ready",   text = "Listos" },
+    }
+    containerFrame.filterChips = {}
+    local chipW = 105
+    for idx, fDef in ipairs(filterDefs) do
+        local chip = CreateFrame("Button", nil, filterBar, "BackdropTemplate")
+        chip:SetSize(chipW, 18)
+        chip:SetPoint("LEFT", filterBar, "LEFT", (idx - 1) * (chipW + 6), 0)
+        chip:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        chip.filterId = fDef.id
+
+        local chipText = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        chipText:SetPoint("CENTER")
+        chipText:SetText(fDef.text)
+        chip.text = chipText
+
+        chip:SetScript("OnClick", function()
+            RaidPrep.activeFilter = fDef.id
+            RaidPrep:UpdateConsumables()
+        end)
+        chip:SetScript("OnEnter", function(selfChip)
+            if RaidPrep.activeFilter ~= selfChip.filterId then
+                selfChip:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+            end
+        end)
+        chip:SetScript("OnLeave", function(selfChip)
+            if RaidPrep.activeFilter ~= selfChip.filterId then
+                selfChip:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+            end
+        end)
+
+        containerFrame.filterChips[fDef.id] = chip
+    end
+
+    -- ScrollFrame de Tarjetas de Consumibles
+    local scroll = CreateFrame("ScrollFrame", "AwakeningPrepScroll", cView, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", filterBar, "BOTTOMLEFT", 0, -4)
+    scroll:SetPoint("BOTTOMRIGHT", cView, "BOTTOMRIGHT", -20, 2)
     containerFrame.scroll = scroll
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(440, 10)
+    content:SetSize(495, 10)
     scroll:SetScrollChild(content)
     containerFrame.content = content
 
-    -- Crear 24 marcos de fila reutilizables
+    -- Crear 24 marcos de tarjetas de 38px
     for i = 1, 24 do
         local row = CreateFrame("Button", nil, content, "BackdropTemplate")
-        row:SetSize(440, 22)
-        row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -((i - 1) * 23))
+        row:SetSize(495, 38)
+        row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -((i - 1) * 40))
+        row:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        row:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        row:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
 
         local hl = row:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
-        hl:SetTexture("Interface\Buttons\UI-Listbox-Highlight")
-        hl:SetBlendMode("ADD")
-        hl:SetAlpha(0.35)
+        hl:SetTexture("Interface\\Buttons\\WHITE8x8")
+        hl:SetColorTexture(1, 1, 1, 0.08)
 
         local sel = row:CreateTexture(nil, "BORDER")
         sel:SetAllPoints()
@@ -1174,35 +1410,55 @@ function RaidPrep:Build(parent)
         sel:Hide()
         row.selection = sel
 
-        -- Columna 1: Icono + Nombre del Consumible (ocupa todo el ancho hasta Inventario)
-        local icon = row:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(16, 16)
-        icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+        -- Contenedor con borde de calidad (BackdropTemplate)
+        local iconFrame = CreateFrame("Frame", nil, row, "BackdropTemplate")
+        iconFrame:SetSize(28, 28)
+        iconFrame:SetPoint("LEFT", row, "LEFT", 6, 0)
+        iconFrame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = 1, right = 1, top = 1, bottom = 1 }
+        })
+        iconFrame:SetBackdropColor(0, 0, 0, 1)
+        iconFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        row.iconFrame = iconFrame
+
+        -- Icono nítido dentro del marco
+        local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("TOPLEFT", 1, -1)
+        icon:SetPoint("BOTTOMRIGHT", -1, 1)
         icon:SetTexture("Interface\\Icons\\inv_potion_52")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         row.icon = icon
 
+        -- Línea 1: Nombre en calidad + req
         local nameLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        nameLabel:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-        nameLabel:SetPoint("RIGHT", row, "RIGHT", -150, 0)
+        nameLabel:SetPoint("TOPLEFT", iconFrame, "TOPRIGHT", 8, -1)
+        nameLabel:SetPoint("RIGHT", row, "RIGHT", -135, 0)
         nameLabel:SetJustifyH("LEFT")
         nameLabel:SetWordWrap(false)
         row.nameLabel = nameLabel
 
-        -- Columna 2 (anteriormente Categoría / Efecto): Oculta en la fila visual, disponible en tooltip
-        local catLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        catLabel:Hide()
-        row.catLabel = catLabel
+        -- Línea 2: Efecto dinámico + Fuente
+        local subLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        subLabel:SetPoint("BOTTOMLEFT", iconFrame, "BOTTOMRIGHT", 8, 1)
+        subLabel:SetPoint("RIGHT", row, "RIGHT", -135, 0)
+        subLabel:SetJustifyH("LEFT")
+        subLabel:SetWordWrap(false)
+        row.subLabel = subLabel
 
-        -- Columna 2 visual (anteriormente 3): Estado en Inventario (Semáforo)
+        -- Columna derecha: Badge semafórico
         local statusLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        statusLabel:SetPoint("LEFT", row, "RIGHT", -146, 0)
-        statusLabel:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+        statusLabel:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        statusLabel:SetWidth(125)
         statusLabel:SetJustifyH("RIGHT")
         statusLabel:SetWordWrap(false)
         row.statusLabel = statusLabel
 
         row:SetScript("OnEnter", function(selfRow)
             if not selfRow.itemData then return end
+            selfRow:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
             local itm = selfRow.itemData
             GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
@@ -1217,7 +1473,7 @@ function RaidPrep:Build(parent)
             GameTooltip:AddLine(" ")
             GameTooltip:AddDoubleLine("|cFFFFD100Categoría:|r " .. (itm.category or "Consumible"), "|cFFFFD100Mínimo Recomendado:|r |cFFFFFFFFx" .. itm.minCount .. "|r")
             GameTooltip:AddDoubleLine("|cFFFFD100Efecto:|r |cFF00FF00" .. (itm.effect or "Mejora") .. "|r", "|cFFFFD100ID:|r |cFF888888" .. itm.id .. "|r")
-            
+
             if itm.tip then
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("|cFFFFD100Por qué se recomienda:|r", 1, 0.82, 0)
@@ -1238,7 +1494,10 @@ function RaidPrep:Build(parent)
             GameTooltip:Show()
         end)
 
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnLeave", function(selfRow)
+            selfRow:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+            GameTooltip:Hide()
+        end)
 
         row:SetScript("OnClick", function(selfRow)
             selectedIndex = i
@@ -1251,29 +1510,55 @@ function RaidPrep:Build(parent)
         rowFrames[i] = row
     end
 
-    -- ---------------------------------------------------------------------
-    -- SECCIÓN 2: VISTA DE CAMPAMENTO ÓPTIMO (WOW FOREVER)
-    -- ---------------------------------------------------------------------
-    local campingControls = CreateFrame("Frame", nil, containerFrame)
-    campingControls:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 2, -24)
-    campingControls:SetPoint("TOPRIGHT", containerFrame, "TOPRIGHT", -2, -24)
-    campingControls:SetHeight(46)
-    campingControls:Hide()
+    -- =====================================================================
+    -- 2. VISTA DE CAMPAMENTO ÓPTIMO (campingView)
+    -- =====================================================================
+    local cpView = CreateFrame("Frame", nil, containerFrame)
+    cpView:SetPoint("TOPLEFT", subBar, "BOTTOMLEFT", 0, -3)
+    cpView:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", 0, 0)
+    cpView:Hide()
+    containerFrame.campingView = cpView
+
+    local campingControls = CreateFrame("Frame", nil, cpView)
+    campingControls:SetPoint("TOPLEFT", cpView, "TOPLEFT", 0, 0)
+    campingControls:SetPoint("TOPRIGHT", cpView, "TOPRIGHT", 0, 0)
+    campingControls:SetHeight(48)
     containerFrame.campingControls = campingControls
 
-    -- Fila 1: Selector de 5 clases de integrantes del equipo (ancho extendido 88px cada una)
+    -- Fila 1: 5 ranuras de integrantes de equipo con estilo Card e icono
     campingControls.slotButtons = {}
-    local slotWidth = 88
+    local slotWidth = 98
     local slotSpacing = 4
     for slotIdx = 1, 5 do
-        local slotBtn = CreateFrame("Button", nil, campingControls, "UIPanelButtonTemplate")
-        slotBtn:SetSize(slotWidth, 20)
+        local slotBtn = CreateFrame("Button", nil, campingControls, "BackdropTemplate")
+        slotBtn:SetSize(slotWidth, 22)
         slotBtn:SetPoint("TOPLEFT", campingControls, "TOPLEFT", (slotIdx - 1) * (slotWidth + slotSpacing), 0)
+        slotBtn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        slotBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        slotBtn:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
         slotBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        local sIcon = slotBtn:CreateTexture(nil, "ARTWORK")
+        sIcon:SetSize(14, 14)
+        sIcon:SetPoint("LEFT", 4, 0)
+        sIcon:SetTexture("Interface\\WorldStateFrame\\Icons-Classes")
+        slotBtn.icon = sIcon
+
+        local sText = slotBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        sText:SetPoint("LEFT", sIcon, "RIGHT", 4, 0)
+        sText:SetPoint("RIGHT", -2, 0)
+        sText:SetJustifyH("LEFT")
+        slotBtn.text = sText
+
         slotBtn:SetScript("OnClick", function(_, mouseBtn)
             RaidPrep:CycleSlotClass(slotIdx, mouseBtn == "RightButton")
         end)
         slotBtn:SetScript("OnEnter", function(selfBtn)
+            selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
             GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
             local cKey = RaidPrep.partyClasses[slotIdx] or "NONE"
             local cName = CLASS_NAMES_ES[cKey] or cKey
@@ -1284,53 +1569,84 @@ function RaidPrep:Build(parent)
             GameTooltip:AddLine("El optimizador descarta mejoras que dupliquen bufos de estas clases.", 0.7, 0.7, 0.7, true)
             GameTooltip:Show()
         end)
-        slotBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        slotBtn:SetScript("OnLeave", function(selfBtn)
+            selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+            GameTooltip:Hide()
+        end)
         campingControls.slotButtons[slotIdx] = slotBtn
     end
 
-    -- Fila 2: Selector de Kit de Fogón (Cocina) + Botón Auto-Detectar + Resumen de optimización
-    local btnCampfire = CreateFrame("Button", nil, campingControls, "UIPanelButtonTemplate")
-    btnCampfire:SetPoint("TOPLEFT", campingControls, "TOPLEFT", 0, -23)
-    btnCampfire:SetSize(200, 20)
-    btnCampfire:SetText("|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Fogón: Oficial (5 r.)")
+    -- Fila 2: Kit de Fogón + Botón Auto-Detectar + Resumen
+    local btnCampfire = CreateFrame("Button", nil, campingControls, "BackdropTemplate")
+    btnCampfire:SetPoint("TOPLEFT", campingControls, "TOPLEFT", 0, -25)
+    btnCampfire:SetSize(185, 20)
+    btnCampfire:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnCampfire:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    btnCampfire:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
     btnCampfire:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    local fireText = btnCampfire:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fireText:SetPoint("LEFT", 6, 0)
+    fireText:SetPoint("RIGHT", -16, 0)
+    fireText:SetJustifyH("LEFT")
+    fireText:SetText("|TInterface\\Icons\\spell_fire_fire:12:12:0:0|t Fogón: Oficial (5 r.)")
+    btnCampfire.text = fireText
+
+    local fireArrow = btnCampfire:CreateTexture(nil, "OVERLAY")
+    fireArrow:SetSize(8, 8)
+    fireArrow:SetPoint("RIGHT", -6, 0)
+    fireArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
+
     btnCampfire:SetScript("OnClick", function(_, mouseBtn)
         RaidPrep:CycleCampfire(mouseBtn == "RightButton")
     end)
     btnCampfire:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
         GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
         GameTooltip:AddLine("Kit de Fogón de Campamento (Cocina)", 1, 0.82, 0)
-        GameTooltip:AddLine("El fogón determina cuántas mejoras de campamento pueden colocarse a la vez:", 1, 1, 1, true)
-        GameTooltip:AddLine("· |cFFFFFFFFBásico:|r 3 mejoras (Cocina 1)", 0.9, 0.9, 0.9)
-        GameTooltip:AddLine("· |cFF1EFF00Oficial:|r 5 mejoras (Cocina 140) - ¡Ideal Mazmorras!", 0.2, 1, 0.2)
-        GameTooltip:AddLine("· |cFF0070DDExperto:|r 10 mejoras (Cocina 220) - Para Bandas", 0.4, 0.7, 1)
-        GameTooltip:AddLine("Clic para cambiar el tipo de fogón.", 1, 0.82, 0)
+        GameTooltip:AddLine("· |cFFFFFFFFBásico:|r 3 mejoras (Cocina 1)\n· |cFF1EFF00Oficial:|r 5 mejoras (Cocina 140)\n· |cFF0070DDExperto:|r 10 mejoras (Cocina 220)", 0.9, 0.9, 0.9, true)
         GameTooltip:Show()
     end)
-    btnCampfire:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btnCampfire:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        GameTooltip:Hide()
+    end)
     campingControls.btnCampfire = btnCampfire
 
-    local campfireArrow = btnCampfire:CreateTexture(nil, "OVERLAY")
-    campfireArrow:SetSize(10, 10)
-    campfireArrow:SetPoint("RIGHT", btnCampfire, "RIGHT", -6, 0)
-    campfireArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
-    btnCampfire.arrow = campfireArrow
-
-    -- Botón Auto-Detectar Grupo
-    local btnAutoScan = CreateFrame("Button", nil, campingControls, "UIPanelButtonTemplate")
+    local btnAutoScan = CreateFrame("Button", nil, campingControls, "BackdropTemplate")
     btnAutoScan:SetPoint("LEFT", btnCampfire, "RIGHT", 4, 0)
     btnAutoScan:SetSize(125, 20)
-    btnAutoScan:SetText("|TInterface\\Icons\\inv_misc_groupneedmore:14:14:0:0|t Auto-Detectar")
+    btnAutoScan:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnAutoScan:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    btnAutoScan:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local autoText = btnAutoScan:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    autoText:SetPoint("CENTER")
+    autoText:SetText("|TInterface\\Icons\\inv_misc_groupneedmore:12:12:0:0|t Auto-Detectar")
+    btnAutoScan.text = autoText
+
     btnAutoScan:SetScript("OnClick", function()
         RaidPrep:ScanParty()
     end)
     btnAutoScan:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
         GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
-        GameTooltip:AddLine("Auto-Detectar Grupo Actual", 1, 0.82, 0)
-        GameTooltip:AddLine("Lee automáticamente a los miembros de tu grupo o banda actual y asigna sus clases a las 5 ranuras.", 1, 1, 1, true)
+        GameTooltip:AddLine("Auto-Detectar Grupo", 1, 0.82, 0)
+        GameTooltip:AddLine("Lee las clases de tu grupo o banda actual y asigna sus ranuras.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
-    btnAutoScan:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btnAutoScan:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        GameTooltip:Hide()
+    end)
     campingControls.btnAutoScan = btnAutoScan
 
     local summaryText = campingControls:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1340,29 +1656,33 @@ function RaidPrep:Build(parent)
     summaryText:SetText("|cFF00FF005 miembros|r · |cFFFFD1005 slots|r")
     campingControls.summaryText = summaryText
 
-    -- Scroll de Filas de Campamento
-    local campingScroll = CreateFrame("ScrollFrame", "AwakeningCampingScroll", containerFrame, "UIPanelScrollFrameTemplate")
-    campingScroll:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 2, -74)
-    campingScroll:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", -20, 2)
-    campingScroll:Hide()
+    -- ScrollFrame de Mejoras de Campamento
+    local campingScroll = CreateFrame("ScrollFrame", "AwakeningCampingScroll", cpView, "UIPanelScrollFrameTemplate")
+    campingScroll:SetPoint("TOPLEFT", campingControls, "BOTTOMLEFT", 0, -4)
+    campingScroll:SetPoint("BOTTOMRIGHT", cpView, "BOTTOMRIGHT", -20, 2)
     containerFrame.campingScroll = campingScroll
 
     local campingContent = CreateFrame("Frame", nil, campingScroll)
-    campingContent:SetSize(440, 10)
+    campingContent:SetSize(495, 10)
     campingScroll:SetScrollChild(campingContent)
     containerFrame.campingContent = campingContent
 
-    -- 20 Filas de Campamento Reutilizables
     for i = 1, 20 do
         local row = CreateFrame("Button", nil, campingContent, "BackdropTemplate")
-        row:SetSize(440, 22)
-        row:SetPoint("TOPLEFT", campingContent, "TOPLEFT", 0, -((i - 1) * 23))
+        row:SetSize(495, 38)
+        row:SetPoint("TOPLEFT", campingContent, "TOPLEFT", 0, -((i - 1) * 40))
+        row:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        row:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        row:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
 
         local hl = row:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
-        hl:SetTexture("Interface\Buttons\UI-Listbox-Highlight")
-        hl:SetBlendMode("ADD")
-        hl:SetAlpha(0.35)
+        hl:SetTexture("Interface\\Buttons\\WHITE8x8")
+        hl:SetColorTexture(1, 1, 1, 0.08)
 
         local sel = row:CreateTexture(nil, "BORDER")
         sel:SetAllPoints()
@@ -1370,47 +1690,51 @@ function RaidPrep:Build(parent)
         sel:Hide()
         row.selection = sel
 
-        -- Badge de Ranura / Estado ([FOGÓN #1], [EXTRA], [DESC])
-        local badge = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        badge:SetPoint("LEFT", row, "LEFT", 2, 0)
-        badge:SetWidth(56)
-        badge:SetJustifyH("LEFT")
-        row.badge = badge
+        local iconFrame = CreateFrame("Frame", nil, row, "BackdropTemplate")
+        iconFrame:SetSize(28, 28)
+        iconFrame:SetPoint("LEFT", row, "LEFT", 6, 0)
+        iconFrame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = 1, right = 1, top = 1, bottom = 1 }
+        })
+        iconFrame:SetBackdropColor(0, 0, 0, 1)
+        iconFrame:SetBackdropBorderColor(0.5, 0.4, 0.2, 0.8)
+        row.iconFrame = iconFrame
 
-        -- Icono
-        local icon = row:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(16, 16)
-        icon:SetPoint("LEFT", badge, "RIGHT", 2, 0)
-        icon:SetTexture("Interface\Icons\inv_misc_questionmark")
+        local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("TOPLEFT", 1, -1)
+        icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        icon:SetTexture("Interface\\Icons\\inv_misc_questionmark")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         row.icon = icon
 
-        -- Nombre del Camp Item
         local nameLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        nameLabel:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-        nameLabel:SetPoint("RIGHT", row, "LEFT", 195, 0)
+        nameLabel:SetPoint("TOPLEFT", iconFrame, "TOPRIGHT", 8, -1)
+        nameLabel:SetPoint("RIGHT", row, "RIGHT", -145, 0)
         nameLabel:SetJustifyH("LEFT")
         nameLabel:SetWordWrap(false)
         row.nameLabel = nameLabel
 
-        -- Profesión / Req
-        local profLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        profLabel:SetPoint("LEFT", row, "LEFT", 198, 0)
-        profLabel:SetPoint("RIGHT", row, "LEFT", 285, 0)
-        profLabel:SetJustifyH("LEFT")
-        profLabel:SetWordWrap(false)
-        row.profLabel = profLabel
-
-        -- Beneficio / Razón / Advertencia de Solapamiento
-        local reasonLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        reasonLabel:SetPoint("LEFT", row, "LEFT", 288, 0)
-        reasonLabel:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-        reasonLabel:SetJustifyH("RIGHT")
+        local reasonLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        reasonLabel:SetPoint("BOTTOMLEFT", iconFrame, "BOTTOMRIGHT", 8, 1)
+        reasonLabel:SetPoint("RIGHT", row, "RIGHT", -145, 0)
+        reasonLabel:SetJustifyH("LEFT")
         reasonLabel:SetWordWrap(false)
         row.reasonLabel = reasonLabel
+
+        local badge = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        badge:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        badge:SetWidth(135)
+        badge:SetJustifyH("RIGHT")
+        badge:SetWordWrap(false)
+        row.badge = badge
 
         row:SetScript("OnEnter", function(selfRow)
             local itm = selfRow.itemData
             if not itm then return end
+            selfRow:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
             GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
             local titleColor = itm.isConflicted and "|cFFFF5555" or (itm.isRecommended and "|cFF00FF00" or "|cFFFFD100")
@@ -1420,18 +1744,18 @@ function RaidPrep:Build(parent)
             if itm.isConflicted then
                 GameTooltip:AddLine("|cFFFF5555[!] Solapamiento de Buff:|r " .. (itm.conflictReason or "Duplica un beneficio de clase"), 1, 0.3, 0.3, true)
             elseif itm.isRecommended then
-                GameTooltip:AddLine(string.format("|cFF00FF00[OK] Recomendado para el fogón (Ranura #%d):|r Máxima sinergia para tu grupo.", itm.slotOrder or 1), 0.2, 1, 0.2, true)
+                GameTooltip:AddLine(string.format("|cFF00FF00[OK] Recomendado para el fogón (Ranura #%d):|r Máxima sinergia.", itm.slotOrder or 1), 0.2, 1, 0.2, true)
             else
-                GameTooltip:AddLine("|cFFFFD100Alternativa disponible:|r Sin solapamiento, pero otras mejoras tienen mayor prioridad.", 1, 0.82, 0, true)
-            end
-            if itm.classCopy then
-                GameTooltip:AddLine("|cFF888888Copia menor de:|r " .. itm.classCopy, 0.6, 0.6, 0.6)
+                GameTooltip:AddLine("|cFFFFD100Alternativa disponible:|r Sin solapamiento, pero menor prioridad.", 1, 0.82, 0, true)
             end
             local cnt = GetItemCount(itm.id, false, false) or 0
             GameTooltip:AddLine(cnt > 0 and "|cFF00FF00En tus bolsas: " .. cnt .. "|r" or "|cFFFF5555No lo tienes en tus bolsas|r")
             GameTooltip:Show()
         end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row:SetScript("OnLeave", function(selfRow)
+            selfRow:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+            GameTooltip:Hide()
+        end)
 
         row:SetScript("OnClick", function(selfRow)
             RaidPrep.selectedCampIndex = i
@@ -1442,6 +1766,142 @@ function RaidPrep:Build(parent)
         end)
 
         campingRowFrames[i] = row
+    end
+
+    -- =====================================================================
+    -- 3. VISTA DE AUDITORÍA DE GRUPO (auditView)
+    -- =====================================================================
+    local aView = CreateFrame("Frame", nil, containerFrame)
+    aView:SetPoint("TOPLEFT", subBar, "BOTTOMLEFT", 0, -3)
+    aView:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", 0, 0)
+    aView:Hide()
+    containerFrame.auditView = aView
+
+    local auditHeader = CreateFrame("Frame", nil, aView)
+    auditHeader:SetPoint("TOPLEFT", aView, "TOPLEFT", 0, 0)
+    auditHeader:SetPoint("TOPRIGHT", aView, "TOPRIGHT", 0, 0)
+    auditHeader:SetHeight(22)
+
+    local auditTitle = auditHeader:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    auditTitle:SetPoint("LEFT", 4, 0)
+    auditTitle:SetText("|cFFFFD100Auditoría de Grupo en Vivo (AWK_COMP)|r")
+
+    local btnCheckGroup = CreateFrame("Button", nil, auditHeader, "BackdropTemplate")
+    btnCheckGroup:SetPoint("RIGHT", 0, 0)
+    btnCheckGroup:SetSize(160, 20)
+    btnCheckGroup:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnCheckGroup:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    btnCheckGroup:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local checkText = btnCheckGroup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    checkText:SetPoint("CENTER")
+    checkText:SetText("|TInterface\\Icons\\inv_misc_groupneedmore:12:12:0:0|t Comprobar Grupo")
+    btnCheckGroup.text = checkText
+
+    btnCheckGroup:SetScript("OnClick", function()
+        RaidPrep:BroadcastStatus()
+        ns.Print("Auditoría: Solicitud de presencia y estado de consumibles transmitida.")
+    end)
+    btnCheckGroup:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+        GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
+        GameTooltip:AddLine("Comprobar Estado del Grupo", 1, 0.82, 0)
+        GameTooltip:AddLine("Envía una señal para que los miembros con Awakening Companion respondan con su preparación.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btnCheckGroup:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        GameTooltip:Hide()
+    end)
+
+    local auditScroll = CreateFrame("ScrollFrame", "AwakeningAuditScroll", aView, "UIPanelScrollFrameTemplate")
+    auditScroll:SetPoint("TOPLEFT", auditHeader, "BOTTOMLEFT", 0, -4)
+    auditScroll:SetPoint("BOTTOMRIGHT", aView, "BOTTOMRIGHT", -20, 2)
+    containerFrame.auditScroll = auditScroll
+
+    local auditContent = CreateFrame("Frame", nil, auditScroll)
+    auditContent:SetSize(495, 10)
+    auditScroll:SetScrollChild(auditContent)
+    containerFrame.auditContent = auditContent
+
+    for i = 1, 20 do
+        local aRow = CreateFrame("Frame", nil, auditContent, "BackdropTemplate")
+        aRow:SetSize(495, 34)
+        aRow:SetPoint("TOPLEFT", auditContent, "TOPLEFT", 0, -((i - 1) * 36))
+        aRow:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        aRow:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        aRow:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+        local aIcon = aRow:CreateTexture(nil, "ARTWORK")
+        aIcon:SetSize(20, 20)
+        aIcon:SetPoint("LEFT", 6, 0)
+        aIcon:SetTexture("Interface\\WorldStateFrame\\Icons-Classes")
+        aRow.icon = aIcon
+
+        local aName = aRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        aName:SetPoint("LEFT", aIcon, "RIGHT", 6, 0)
+        aName:SetPoint("RIGHT", aRow, "CENTER", -20, 0)
+        aName:SetJustifyH("LEFT")
+        aRow.nameLabel = aName
+
+        local aBar = CreateFrame("Frame", nil, aRow, "BackdropTemplate")
+        aBar:SetSize(140, 10)
+        aBar:SetPoint("LEFT", aRow, "CENTER", -10, 0)
+        aBar:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        aBar:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+        aBar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+
+        local aBarFill = aBar:CreateTexture(nil, "ARTWORK")
+        aBarFill:SetPoint("TOPLEFT", aBar, "TOPLEFT", 1, -1)
+        aBarFill:SetPoint("BOTTOMLEFT", aBar, "BOTTOMLEFT", 1, 1)
+        aBarFill:SetWidth(10)
+        aBarFill:SetTexture("Interface\\Buttons\\WHITE8x8")
+        aBarFill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+        aRow.barFill = aBarFill
+        aRow.bar = aBar
+
+        local aStatus = aRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        aStatus:SetPoint("RIGHT", aRow, "RIGHT", -8, 0)
+        aStatus:SetWidth(110)
+        aStatus:SetJustifyH("RIGHT")
+        aRow.statusLabel = aStatus
+
+        auditRowFrames[i] = aRow
+    end
+
+    -- Registrar escucha de eventos P2P para auditoría en tiempo real
+    if ns.Comms and ns.Comms.RegisterCallback and not RaidPrep.commsRegistered then
+        RaidPrep.commsRegistered = true
+        ns.Comms:RegisterCallback("PREP_STATUS", function(sender, payload, channel)
+            if not sender or not payload then return end
+            local r, t, c = payload:match("^(%d+)/(%d+):?(.*)$")
+            if r and t then
+                partyCommsData[sender] = {
+                    ready = tonumber(r) or 0,
+                    total = tonumber(t) or 0,
+                    class = (c ~= "" and c) or nil,
+                    timestamp = GetTime(),
+                }
+                if RaidPrep.currentSubMode == "audit" then
+                    RaidPrep:UpdateAudit()
+                end
+                if hdViewerFrame and hdViewerFrame:IsShown() and activeHDTab == "audit" then
+                    RaidPrep:UpdateHDAudit()
+                end
+            end
+        end)
     end
 
     RaidPrep:Update()
@@ -1455,27 +1915,33 @@ function RaidPrep:SetSubMode(mode)
     self.currentSubMode = mode or "consumables"
 
     if containerFrame then
-        if self.currentSubMode == "camping" then
-            containerFrame.controls:Hide()
-            containerFrame.scroll:Hide()
-            containerFrame.campingControls:Show()
-            containerFrame.campingScroll:Show()
-            if containerFrame.subBar then
-                containerFrame.subBar.btnConsumables:SetText("|TInterface\\Icons\\inv_potion_52:14:14:0:0|t Consumibles Personales")
-                containerFrame.subBar.btnCamping:SetText("|cFFFFD100|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Campamento Óptimo|r")
+        -- Actualizar estado visual de las 3 pestañas estilo píldora
+        if containerFrame.subTabs then
+            for id, btn in pairs(containerFrame.subTabs) do
+                if id == self.currentSubMode then
+                    btn:SetBackdropColor(unpack(PREP_COLORS.tabActiveBg))
+                    btn:SetBackdropBorderColor(unpack(PREP_COLORS.headerBorder))
+                    if btn.text then btn.text:SetTextColor(1, 0.84, 0, 1) end
+                else
+                    btn:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+                    btn:SetBackdropBorderColor(unpack(PREP_COLORS.tabBorder))
+                    if btn.text then btn.text:SetTextColor(0.8, 0.7, 0.5, 1) end
+                end
             end
-            self:UpdateCamping()
-        else
-            containerFrame.controls:Show()
-            containerFrame.scroll:Show()
-            containerFrame.campingControls:Hide()
-            containerFrame.campingScroll:Hide()
-            if containerFrame.subBar then
-                containerFrame.subBar.btnConsumables:SetText("|cFFFFD100|TInterface\\Icons\\inv_potion_52:14:14:0:0|t Consumibles Personales|r")
-                containerFrame.subBar.btnCamping:SetText("|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Campamento Óptimo")
-            end
-            self:UpdateConsumables()
         end
+
+        -- Conmutar vistas
+        if containerFrame.consumablesView then
+            containerFrame.consumablesView:SetShown(self.currentSubMode == "consumables")
+        end
+        if containerFrame.campingView then
+            containerFrame.campingView:SetShown(self.currentSubMode == "camping")
+        end
+        if containerFrame.auditView then
+            containerFrame.auditView:SetShown(self.currentSubMode == "audit")
+        end
+
+        self:Update()
     end
 
     if ns.MainUI and ns.MainUI.UpdatePrepTabButtons then
@@ -1626,31 +2092,41 @@ function RaidPrep:UpdateCamping()
     local fullList, recommended, discarded, selectedFire, partyCount = self:GetOptimizedCampingList()
     local mainFrame = ns.MainUI and ns.MainUI.frame
 
-    -- Actualizar botones de clases de las 5 ranuras
+    -- Actualizar botones de clases de las 5 ranuras con iconos oficiales y colores
     if containerFrame and containerFrame.campingControls and containerFrame.campingControls.slotButtons then
         for idx = 1, 5 do
             local btn = containerFrame.campingControls.slotButtons[idx]
             local cKey = self.partyClasses[idx] or "NONE"
             local cName = CLASS_NAMES_ES[cKey] or cKey
             local cColor = CLASS_COLORS[cKey] or "888888"
+
+            local cCoords = CLASS_ICON_COORDS[cKey]
+            if cCoords and btn.icon then
+                btn.icon:SetTexture("Interface\\WorldStateFrame\\Icons-Classes")
+                btn.icon:SetTexCoord(unpack(cCoords))
+                btn.icon:Show()
+            elseif btn.icon then
+                btn.icon:Hide()
+            end
+
             if cKey == "NONE" then
-                btn:SetText("|cFF888888(Vacío)|r")
+                btn.text:SetText("|cFF888888(Vacío)|r")
             else
                 if idx == 1 then
-                    btn:SetText(string.format("|cFF%s(Tú) %s|r", cColor, cName))
+                    btn.text:SetText(string.format("|cFF%s(Tú) %s|r", cColor, cName))
                 else
-                    btn:SetText(string.format("|cFF%s%s|r", cColor, cName))
+                    btn.text:SetText(string.format("|cFF%s%s|r", cColor, cName))
                 end
             end
         end
 
         local fireName = selectedFire and selectedFire.name:gsub("Kit de fogón ", "") or "Oficial"
         local fireSlots = selectedFire and selectedFire.slots or 5
-        containerFrame.campingControls.btnCampfire:SetText(string.format("|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Fogón: %s (%d r.)", fireName, fireSlots))
+        containerFrame.campingControls.btnCampfire.text:SetText(string.format("|TInterface\\Icons\\spell_fire_fire:12:12:0:0|t Fogón: %s (%d r.)", fireName, fireSlots))
 
         local conflictCount = #discarded
         containerFrame.campingControls.summaryText:SetText(string.format(
-            "|cFF00FF00%d miembros|r · |cFFFFD100%d slots|r · |cFF%s%d solapados evitados|r",
+            "|cFF00FF00%d miembros|r · |cFFFFD100%d ranuras|r · |cFF%s%d solapados evitados|r",
             partyCount,
             fireSlots,
             conflictCount > 0 and "FF5555" or "00FF00",
@@ -1669,25 +2145,21 @@ function RaidPrep:UpdateCamping()
             local countTag = count > 0 and "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t " or ""
 
             -- Icono
-            row.icon:SetTexture(itemData.icon or "Interface\Icons\inv_misc_questionmark")
+            row.icon:SetTexture(itemData.icon or "Interface\\Icons\\inv_misc_questionmark")
 
-            -- Badge y Colores
+            -- Badge, Nombre y Razón
             if itemData.isConflicted then
-                row.badge:SetText("|cFFFF5555[DESC]|r")
+                row.badge:SetText("|cFFFF5555[SOLAPA: " .. (CLASS_NAMES_ES[itemData.conflictClass] or itemData.conflictClass or "Clase") .. "]|r")
                 row.nameLabel:SetText("|cFF888888" .. itemData.name .. "|r")
-                row.profLabel:SetText("|cFF888888" .. itemData.profession .. " (" .. itemData.skillReq .. ")|r")
-                local confName = CLASS_NAMES_ES[itemData.conflictClass] or itemData.conflictClass or "Clase"
-                row.reasonLabel:SetText(string.format("|cFFFF5555[!] Solapa con %s|r", confName))
+                row.reasonLabel:SetText(string.format("|cFFFF5555[!] %s|r · |cFF888888%s (%d)|r", itemData.conflictReason or "Solapamiento", itemData.profession, itemData.skillReq or 20))
             elseif itemData.isRecommended then
                 row.badge:SetText(string.format("|cFF00FF00[FOGÓN #%d]|r", itemData.slotOrder or 1))
-                row.nameLabel:SetText(countTag .. "|cFFFFFFFF" .. itemData.name .. "|r")
-                row.profLabel:SetText("|cFFFFD100" .. itemData.profession .. " (" .. itemData.skillReq .. ")|r")
-                row.reasonLabel:SetText("|cFF00FF00" .. itemData.effect .. "|r")
+                row.nameLabel:SetText(countTag .. "|cFFFFD100" .. itemData.name .. "|r")
+                row.reasonLabel:SetText(string.format("|cFF00FFCC%s|r · |cFFC79C6E%s (%d)|r", itemData.effect or "Mejora", itemData.profession, itemData.skillReq or 20))
             else
                 row.badge:SetText("|cFFFFCC00[EXTRA]|r")
                 row.nameLabel:SetText(countTag .. "|cFFFFFFFF" .. itemData.name .. "|r")
-                row.profLabel:SetText("|cFF888888" .. itemData.profession .. " (" .. itemData.skillReq .. ")|r")
-                row.reasonLabel:SetText("|cFFFFCC00" .. itemData.effect .. "|r")
+                row.reasonLabel:SetText(string.format("|cFFFFCC00%s|r · |cFF888888%s (%d)|r", itemData.effect or "Mejora", itemData.profession, itemData.skillReq or 20))
             end
 
             row.selection:SetShown(i == self.selectedCampIndex)
@@ -1698,7 +2170,7 @@ function RaidPrep:UpdateCamping()
     end
 
     if containerFrame and containerFrame.campingContent then
-        containerFrame.campingContent:SetHeight(math.max(10, #fullList * 23))
+        containerFrame.campingContent:SetHeight(math.max(10, #fullList * 40))
     end
 
     -- Encabezado dinámico Hero estilo Olympus
@@ -1775,7 +2247,7 @@ function RaidPrep:SelectCampItem(campItem)
 end
 
 -- =========================================================================
--- ACTUALIZACIÓN DE CONSUMIBLES PERSONALES
+-- ACTUALIZACIÓN DE CONSUMIBLES PERSONALES (CON FILTROS Y MEDIDOR SEMAFÓRICO)
 -- =========================================================================
 function RaidPrep:UpdateConsumables()
     local list, bracketData, activeSpec = self:GetConsumablesList()
@@ -1789,48 +2261,122 @@ function RaidPrep:UpdateConsumables()
     end
 
     local readyCount = 0
+    local missingCount = 0
     local totalCount = #list
 
+    for _, itm in ipairs(list) do
+        local cnt = GetItemCount(itm.id, false, false) or 0
+        if cnt >= itm.minCount then
+            readyCount = readyCount + 1
+        else
+            missingCount = missingCount + 1
+        end
+    end
+
+    local pct = (totalCount > 0) and math.floor((readyCount / totalCount) * 100) or 0
+
+    -- Actualizar barra medidora (Readiness Gauge Bar)
+    if containerFrame and containerFrame.gaugeFrame then
+        local gf = containerFrame.gaugeFrame
+        local fillW = math.max(2, math.floor(((gf:GetWidth() > 0 and gf:GetWidth() or 495) - 2) * (readyCount / (totalCount > 0 and totalCount or 1))))
+        gf.fill:SetWidth(fillW)
+        if pct >= 80 then
+            gf.fill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+        elseif pct >= 40 then
+            gf.fill:SetVertexColor(unpack(PREP_COLORS.warnAmber))
+        else
+            gf.fill:SetVertexColor(unpack(PREP_COLORS.dangerRed))
+        end
+        gf.text:SetText(string.format("%d / %d Consumibles Listos (%d%%)", readyCount, totalCount, pct))
+    end
+
+    -- Actualizar Chips de Filtro
+    if containerFrame and containerFrame.filterChips then
+        local allChip = containerFrame.filterChips["all"]
+        if allChip and allChip.text then
+            allChip.text:SetText(string.format("Todos (%d)", totalCount))
+            allChip:SetBackdropColor(unpack(self.activeFilter == "all" and PREP_COLORS.tabActiveBg or PREP_COLORS.tabInactiveBg))
+            allChip:SetBackdropBorderColor(unpack(self.activeFilter == "all" and PREP_COLORS.headerBorder or PREP_COLORS.tabBorder))
+        end
+
+        local missChip = containerFrame.filterChips["missing"]
+        if missChip and missChip.text then
+            missChip.text:SetText(string.format("Faltantes (%d)", missingCount))
+            missChip:SetBackdropColor(unpack(self.activeFilter == "missing" and PREP_COLORS.tabActiveBg or PREP_COLORS.tabInactiveBg))
+            missChip:SetBackdropBorderColor(unpack(self.activeFilter == "missing" and PREP_COLORS.headerBorder or PREP_COLORS.tabBorder))
+        end
+
+        local rdyChip = containerFrame.filterChips["ready"]
+        if rdyChip and rdyChip.text then
+            rdyChip.text:SetText(string.format("Listos (%d)", readyCount))
+            rdyChip:SetBackdropColor(unpack(self.activeFilter == "ready" and PREP_COLORS.tabActiveBg or PREP_COLORS.tabInactiveBg))
+            rdyChip:SetBackdropBorderColor(unpack(self.activeFilter == "ready" and PREP_COLORS.headerBorder or PREP_COLORS.tabBorder))
+        end
+    end
+
+    -- Filtrar lista para mostrar según filtro activo
+    local displayList = {}
+    for _, item in ipairs(list) do
+        local count = GetItemCount(item.id, false, false) or 0
+        local isReady = (count >= item.minCount)
+        if self.activeFilter == "all" then
+            table.insert(displayList, item)
+        elseif self.activeFilter == "missing" and not isReady then
+            table.insert(displayList, item)
+        elseif self.activeFilter == "ready" and isReady then
+            table.insert(displayList, item)
+        end
+    end
+
     for i, row in ipairs(rowFrames) do
-        local itemData = list[i]
+        local itemData = displayList[i]
         if itemData then
             row.itemData = itemData
             row:Show()
 
             local count = GetItemCount(itemData.id, false, false) or 0
             local isReady = (count >= itemData.minCount)
-            if isReady then readyCount = readyCount + 1 end
 
             -- Icono
             local name, link, quality, texture = SafeGetItem(itemData.id)
-            row.icon:SetTexture(texture or itemData.icon or "Interface\Icons\inv_potion_52")
+            local itemTex = texture or GetItemTextureSafe(itemData.id, itemData.icon)
+            row.icon:SetTexture(itemTex)
 
-            -- Calidad y color
+            -- Calidad y color del borde
             local qc = "|cFFFFFFFF"
             local q = quality or itemData.quality or 1
-            if q == 4 then qc = "|cFFA335EE"
-            elseif q == 3 then qc = "|cFF0070DD"
-            elseif q == 2 then qc = "|cFF1EFF00"
+            local br, bg, bb = 0.4, 0.4, 0.4
+            if q == 4 then
+                qc = "|cFFA335EE"
+                br, bg, bb = 0.64, 0.21, 0.93
+            elseif q == 3 then
+                qc = "|cFF0070DD"
+                br, bg, bb = 0.0, 0.44, 0.87
+            elseif q == 2 then
+                qc = "|cFF1EFF00"
+                br, bg, bb = 0.12, 1.0, 0.0
+            end
+            if row.iconFrame then
+                row.iconFrame:SetBackdropBorderColor(br, bg, bb, 1)
             end
 
             local displayName = link or (qc .. (name or itemData.name) .. "|r")
             row.nameLabel:SetText(string.format("%s |cFF888888(x%d)|r", displayName, itemData.minCount))
 
-            -- Categoría / Efecto (oculto en la lista de consumibles; disponible en tooltip)
-            if row.catLabel then
-                row.catLabel:Hide()
-            end
+            local dynEffect = self:GetDynamicItemEffect(itemData.id)
+            local effStr = dynEffect or itemData.effect or "Mejora"
+            row.subLabel:SetText(string.format("|cFF00FFCC%s|r · |cFFC79C6E%s|r", effStr, itemData.source or "Proveedor"))
 
             -- Estado semafórico
             if isReady then
-                row.statusLabel:SetText(string.format("|cFF00FF00Listo (%d/%d)|r", count, itemData.minCount))
+                row.statusLabel:SetText(string.format("|cFF00FF00[LISTO x%d]|r", count))
             elseif count > 0 then
-                row.statusLabel:SetText(string.format("|cFFFFCC00Faltan %d (%d/%d)|r", itemData.minCount - count, count, itemData.minCount))
+                row.statusLabel:SetText(string.format("|cFFFFCC00[FALTAN %d (%d/%d)]|r", itemData.minCount - count, count, itemData.minCount))
             else
-                row.statusLabel:SetText(string.format("|cFFFF5555Faltan %d (0/%d)|r", itemData.minCount, itemData.minCount))
+                row.statusLabel:SetText(string.format("|cFFFF5555[FALTAN %d (0/%d)]|r", itemData.minCount, itemData.minCount))
             end
 
-            row.selection:SetShown(i == selectedIndex)
+            row.selection:SetShown(itemData == list[selectedIndex])
         else
             row.itemData = nil
             row:Hide()
@@ -1838,7 +2384,7 @@ function RaidPrep:UpdateConsumables()
     end
 
     if containerFrame and containerFrame.content then
-        containerFrame.content:SetHeight(math.max(10, #list * 23))
+        containerFrame.content:SetHeight(math.max(10, #displayList * 40))
     end
 
     -- Actualizar Botones de Control
@@ -1846,19 +2392,18 @@ function RaidPrep:UpdateConsumables()
         local pLvl = UnitLevel("player") or 1
         local modeText = previewRaidMode and "Modo: Banda / Raid (Nv. 60)"
             or (pLvl >= 60 and "Banda/Raid (60)" or ("Leveleo (" .. bracketData.short .. ")"))
-        if containerFrame.modeBtn then
-            containerFrame.modeBtn:SetText(modeText)
+        if containerFrame.modeBtn and containerFrame.modeBtn.text then
+            containerFrame.modeBtn.text:SetText(modeText)
         end
-        if containerFrame.specBtn and activeSpec then
-            containerFrame.specBtn:SetText(activeSpec.name:gsub("%s*%(.-%)", ""))
+        if containerFrame.specBtn and containerFrame.specBtn.text and activeSpec then
+            containerFrame.specBtn.text:SetText(activeSpec.name:gsub("%s*%(.-%)", ""))
         end
     end
 
-    -- Actualizar Encabezado Dinámico Hero estilo Olympus (Clase y Nivel del Jugador)
+    -- Actualizar Encabezado Dinámico Hero estilo Olympus
     local localizedClass, playerClass = UnitClass("player")
     localizedClass = localizedClass or playerClass or "Aventurero"
     local playerLevel = UnitLevel("player") or 1
-    local pct = (totalCount > 0) and math.floor((readyCount / totalCount) * 100) or 0
 
     if mainFrame and mainFrame.heroTitle then
         mainFrame.heroTitle:SetText(string.format(
@@ -1881,11 +2426,146 @@ function RaidPrep:UpdateConsumables()
 end
 
 -- =========================================================================
+-- ACTUALIZACIÓN DE AUDITORÍA DE GRUPO EN VIVO (AWK_COMP P2P)
+-- =========================================================================
+function RaidPrep:UpdateAudit()
+    if not containerFrame or not containerFrame.auditView then return end
+
+    local members = {}
+    local numGroup = GetNumGroupMembers() or 0
+
+    if IsInRaid() and numGroup > 0 then
+        for i = 1, numGroup do
+            local name, rank, subgroup, level, class, fileName = GetRaidRosterInfo(i)
+            if name then
+                local shortName = name:gsub("%-.*$", "")
+                table.insert(members, {
+                    name = shortName,
+                    fullName = name,
+                    class = fileName or class or "WARRIOR",
+                    unit = "raid" .. i,
+                    isPlayer = UnitIsUnit("raid" .. i, "player"),
+                })
+            end
+        end
+    elseif numGroup > 0 then
+        local myName = UnitName("player")
+        local _, myClass = UnitClass("player")
+        table.insert(members, {
+            name = myName,
+            fullName = myName,
+            class = myClass or "WARRIOR",
+            unit = "player",
+            isPlayer = true,
+        })
+        for i = 1, 4 do
+            local unit = "party" .. i
+            if UnitExists(unit) then
+                local uName = UnitName(unit)
+                local _, uClass = UnitClass(unit)
+                if uName then
+                    local shortName = uName:gsub("%-.*$", "")
+                    table.insert(members, {
+                        name = shortName,
+                        fullName = uName,
+                        class = uClass or "WARRIOR",
+                        unit = unit,
+                        isPlayer = false,
+                    })
+                end
+            end
+        end
+    else
+        local myName = UnitName("player")
+        local _, myClass = UnitClass("player")
+        table.insert(members, {
+            name = myName,
+            fullName = myName,
+            class = myClass or "WARRIOR",
+            unit = "player",
+            isPlayer = true,
+        })
+    end
+
+    -- Calcular datos del jugador local
+    local myList = self:GetConsumablesList()
+    local myReady = 0
+    for _, it in ipairs(myList) do
+        if (GetItemCount(it.id, false, false) or 0) >= it.minCount then
+            myReady = myReady + 1
+        end
+    end
+    local myTotal = #myList
+
+    for i, aRow in ipairs(auditRowFrames) do
+        local m = members[i]
+        if m then
+            aRow:Show()
+            local cCoords = CLASS_ICON_COORDS[m.class]
+            if cCoords then
+                aRow.icon:SetTexture("Interface\\WorldStateFrame\\Icons-Classes")
+                aRow.icon:SetTexCoord(unpack(cCoords))
+            else
+                aRow.icon:SetTexture("Interface\\Icons\\inv_misc_questionmark")
+                aRow.icon:SetTexCoord(0, 1, 0, 1)
+            end
+
+            local cColor = CLASS_COLORS[m.class] or "FFFFFF"
+            local dName = string.format("|cFF%s%s|r", cColor, m.name)
+            if m.isPlayer then
+                dName = dName .. " |cFFFFD100(Tú)|r"
+            end
+            aRow.nameLabel:SetText(dName)
+
+            local ready, total
+            if m.isPlayer then
+                ready = myReady
+                total = myTotal
+            else
+                local comm = partyCommsData[m.name]
+                if comm then
+                    ready = comm.ready
+                    total = comm.total
+                end
+            end
+
+            if ready and total and total > 0 then
+                local pct = math.floor((ready / total) * 100)
+                local barW = math.max(2, math.floor(138 * (ready / total)))
+                aRow.barFill:SetWidth(barW)
+                if pct >= 80 then
+                    aRow.barFill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+                    aRow.statusLabel:SetText(string.format("|cFF00FF00%d/%d (%d%%)|r", ready, total, pct))
+                elseif pct >= 40 then
+                    aRow.barFill:SetVertexColor(unpack(PREP_COLORS.warnAmber))
+                    aRow.statusLabel:SetText(string.format("|cFFFFCC00%d/%d (%d%%)|r", ready, total, pct))
+                else
+                    aRow.barFill:SetVertexColor(unpack(PREP_COLORS.dangerRed))
+                    aRow.statusLabel:SetText(string.format("|cFFFF5555%d/%d (%d%%)|r", ready, total, pct))
+                end
+            else
+                aRow.barFill:SetWidth(2)
+                aRow.barFill:SetVertexColor(0.4, 0.4, 0.4, 0.6)
+                aRow.statusLabel:SetText("|cFF888888Sin datos|r")
+            end
+        else
+            aRow:Hide()
+        end
+    end
+
+    if containerFrame and containerFrame.auditContent then
+        containerFrame.auditContent:SetHeight(math.max(10, #members * 36))
+    end
+end
+
+-- =========================================================================
 -- ROUTER PRINCIPAL DE ACTUALIZACIÓN SEGÚN SUB-MODO
 -- =========================================================================
 function RaidPrep:Update()
     if self.currentSubMode == "camping" then
         self:UpdateCamping()
+    elseif self.currentSubMode == "audit" then
+        self:UpdateAudit()
     else
         self:UpdateConsumables()
     end
@@ -2021,4 +2701,1145 @@ end
 
 function RaidPrep:ScanInventory()
     self:Update()
+end
+
+-- =========================================================================
+-- SUITE DESACOPLADA DE ALTA FIDELIDAD HD (AwakeningRaidPrepHDFrame · 820x540)
+-- =========================================================================
+local HD_WIDTH = 820
+local HD_HEIGHT = 540
+
+function RaidPrep:InitHD()
+    if hdViewerFrame then return end
+
+    local f = CreateFrame("Frame", "AwakeningRaidPrepHDFrame", UIParent, "BackdropTemplate")
+    f:SetSize(HD_WIDTH, HD_HEIGHT)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
+    f:SetFrameStrata("HIGH")
+    f:SetToplevel(true)
+    f:SetClampedToScreen(true)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:Hide()
+
+    -- Registrar para cierre inmediato con tecla Escape
+    tinsert(UISpecialFrames, "AwakeningRaidPrepHDFrame")
+
+    -- Borde y fondo estilo Olympus / GuideViewer
+    f:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 2,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    f:SetBackdropColor(unpack(PREP_COLORS.panelBg))
+    f:SetBackdropBorderColor(unpack(PREP_COLORS.panelBorder))
+
+    if ns.ApplyTavernBackground then
+        ns.ApplyTavernBackground(f, { scrim = 0.68 })
+    end
+
+    -- Cabecera superior con degradado
+    local header = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    header:SetSize(HD_WIDTH - 6, 42)
+    header:SetPoint("TOP", 0, -3)
+    header:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    header:SetBackdropColor(unpack(PREP_COLORS.headerBg))
+    header:SetBackdropBorderColor(unpack(PREP_COLORS.headerBorder))
+
+    local headerGlow = header:CreateTexture(nil, "ARTWORK")
+    headerGlow:SetTexture("Interface\\Buttons\\WHITE8x8")
+    headerGlow:SetPoint("TOPLEFT", 1, -1)
+    headerGlow:SetPoint("TOPRIGHT", -1, -1)
+    headerGlow:SetHeight(24)
+    if headerGlow.SetGradient then
+        headerGlow:SetGradient("VERTICAL", CreateColor(0.6, 0.45, 0.1, 0.4), CreateColor(0.6, 0.45, 0.1, 0))
+    end
+
+    local crest = header:CreateTexture(nil, "OVERLAY")
+    crest:SetSize(32, 32)
+    crest:SetPoint("LEFT", 10, 0)
+    crest:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\awakening_crest.tga")
+    if crest.SetMask then
+        pcall(crest.SetMask, crest, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    end
+
+    local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("LEFT", crest, "RIGHT", 10, 5)
+    title:SetText("|cFFFFD100AWAKENING · PREPARACIÓN DE BANDA & SUMINISTROS HD|r")
+    if title.SetFont then
+        title:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+    end
+    f.titleText = title
+
+    local subtitle = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    subtitle:SetPoint("LEFT", crest, "RIGHT", 10, -9)
+    subtitle:SetText("|cFFCCAA66SUITE DE AUDITORÍA, CONSUMIBLES Y SINERGIAS DE FOGÓN · WOW FOREVER|r")
+    f.subtitleText = subtitle
+
+    local closeBtn = CreateFrame("Button", nil, header, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -2, -2)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+
+    -- Barra horizontal de pestañas (Estilo Chairfaces Casino)
+    local tabBar = CreateFrame("Frame", nil, f)
+    tabBar:SetSize(HD_WIDTH - 20, 30)
+    tabBar:SetPoint("TOP", header, "BOTTOM", 0, -6)
+    f.tabBar = tabBar
+    f.tabs = {}
+
+    local HD_TAB_DEFS = {
+        { id = "consumables", text = "Consumibles (Loot Grid)", icon = "Interface\\Icons\\inv_potion_52" },
+        { id = "camping",     text = "Campamento Óptimo",       icon = "Interface\\Icons\\spell_fire_fire" },
+        { id = "audit",       text = "Auditoría de Banda (40-man)", icon = "Interface\\Icons\\inv_misc_groupneedmore" },
+    }
+
+    local tabWidth = (HD_WIDTH - 30) / #HD_TAB_DEFS
+    for i, def in ipairs(HD_TAB_DEFS) do
+        local tab = CreateFrame("Button", nil, tabBar, "BackdropTemplate")
+        tab:SetSize(tabWidth - 4, 28)
+        tab:SetPoint("LEFT", (i - 1) * tabWidth + 2, 0)
+        tab:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        tab.tabId = def.id
+
+        local tIcon = tab:CreateTexture(nil, "ARTWORK")
+        tIcon:SetSize(16, 16)
+        tIcon:SetPoint("LEFT", 8, 0)
+        tIcon:SetTexture(def.icon)
+        tab.icon = tIcon
+
+        local tText = tab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        tText:SetPoint("LEFT", tIcon, "RIGHT", 6, 0)
+        tText:SetText(def.text)
+        tab.text = tText
+
+        tab:SetScript("OnClick", function()
+            RaidPrep:SwitchHDTab(def.id)
+        end)
+        tab:SetScript("OnEnter", function(selfTab)
+            if activeHDTab ~= selfTab.tabId then
+                selfTab:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+            end
+        end)
+        tab:SetScript("OnLeave", function(selfTab)
+            if activeHDTab ~= selfTab.tabId then
+                selfTab:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+            end
+        end)
+
+        f.tabs[def.id] = tab
+    end
+
+    -- Contenedor de Paneles
+    local panelsContainer = CreateFrame("Frame", nil, f)
+    panelsContainer:SetSize(HD_WIDTH - 20, HD_HEIGHT - 128)
+    panelsContainer:SetPoint("TOP", tabBar, "BOTTOM", 0, -6)
+    f.panelsContainer = panelsContainer
+    f.panels = {}
+
+    -- =====================================================================
+    -- 1. PANEL HD: CONSUMIBLES (LOOT GRID)
+    -- =====================================================================
+    local pConsumables = CreateFrame("Frame", nil, panelsContainer)
+    pConsumables:SetAllPoints()
+    f.panels["consumables"] = pConsumables
+
+    -- Barra superior de controles HD
+    local hdCtrl = CreateFrame("Frame", nil, pConsumables)
+    hdCtrl:SetPoint("TOPLEFT", 0, 0)
+    hdCtrl:SetPoint("TOPRIGHT", 0, 0)
+    hdCtrl:SetHeight(28)
+    pConsumables.controls = hdCtrl
+
+    local hdSpecBtn = CreateFrame("Button", nil, hdCtrl, "BackdropTemplate")
+    hdSpecBtn:SetPoint("LEFT", 0, 0)
+    hdSpecBtn:SetSize(190, 24)
+    hdSpecBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    hdSpecBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    hdSpecBtn:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+    hdSpecBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    local hdSpecIcon = hdSpecBtn:CreateTexture(nil, "ARTWORK")
+    hdSpecIcon:SetSize(16, 16)
+    hdSpecIcon:SetPoint("LEFT", 6, 0)
+    hdSpecIcon:SetTexture("Interface\\Icons\\inv_sword_04")
+    hdSpecBtn.icon = hdSpecIcon
+
+    local hdSpecText = hdSpecBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hdSpecText:SetPoint("LEFT", hdSpecIcon, "RIGHT", 6, 0)
+    hdSpecText:SetPoint("RIGHT", -6, 0)
+    hdSpecText:SetJustifyH("LEFT")
+    hdSpecText:SetText("Especialización: ...")
+    hdSpecBtn.text = hdSpecText
+    hdSpecBtn:SetScript("OnClick", function(_, mouseBtn)
+        RaidPrep:CycleSpec(mouseBtn == "RightButton")
+        RaidPrep:UpdateHD()
+    end)
+    pConsumables.specBtn = hdSpecBtn
+
+    local hdModeBtn = CreateFrame("Button", nil, hdCtrl, "BackdropTemplate")
+    hdModeBtn:SetPoint("LEFT", hdSpecBtn, "RIGHT", 6, 0)
+    hdModeBtn:SetSize(180, 24)
+    hdModeBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    hdModeBtn:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    hdModeBtn:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local hdModeText = hdModeBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hdModeText:SetPoint("CENTER")
+    hdModeText:SetText("Modo: Leveleo")
+    hdModeBtn.text = hdModeText
+    hdModeBtn:SetScript("OnClick", function()
+        previewRaidMode = not previewRaidMode
+        RaidPrep:Update()
+        RaidPrep:UpdateHD()
+    end)
+    pConsumables.modeBtn = hdModeBtn
+
+    -- Chips de filtrado HD
+    pConsumables.chips = {}
+    local chipDefs = { { id = "all", text = "Todos" }, { id = "missing", text = "Faltantes" }, { id = "ready", text = "Listos" } }
+    for cIdx, cDef in ipairs(chipDefs) do
+        local chip = CreateFrame("Button", nil, hdCtrl, "BackdropTemplate")
+        chip:SetSize(80, 22)
+        chip:SetPoint("LEFT", hdModeBtn, "RIGHT", 10 + (cIdx - 1) * 86, 0)
+        chip:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        chip.filterId = cDef.id
+        local ct = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        ct:SetPoint("CENTER")
+        ct:SetText(cDef.text)
+        chip.text = ct
+        chip:SetScript("OnClick", function()
+            RaidPrep.activeFilter = cDef.id
+            RaidPrep:UpdateConsumables()
+            RaidPrep:UpdateHDConsumables()
+        end)
+        pConsumables.chips[cDef.id] = chip
+    end
+
+    -- Medidor semafórico HD (Gauge)
+    local hdGauge = CreateFrame("Frame", nil, hdCtrl, "BackdropTemplate")
+    hdGauge:SetPoint("RIGHT", 0, 0)
+    hdGauge:SetSize(145, 22)
+    hdGauge:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    hdGauge:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+    hdGauge:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local hdGaugeFill = hdGauge:CreateTexture(nil, "ARTWORK")
+    hdGaugeFill:SetPoint("TOPLEFT", 1, -1)
+    hdGaugeFill:SetPoint("BOTTOMLEFT", 1, 1)
+    hdGaugeFill:SetWidth(10)
+    hdGaugeFill:SetTexture("Interface\\Buttons\\WHITE8x8")
+    hdGaugeFill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+    hdGauge.fill = hdGaugeFill
+
+    local hdGaugeText = hdGauge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hdGaugeText:SetPoint("CENTER")
+    hdGaugeText:SetText("0% Listo")
+    hdGauge.text = hdGaugeText
+    pConsumables.gauge = hdGauge
+
+    -- ScrollFrame de tarjetas Loot Grid (2 columnas)
+    local hdScroll = CreateFrame("ScrollFrame", "AwakeningHDConsumablesScroll", pConsumables, "UIPanelScrollFrameTemplate")
+    hdScroll:SetPoint("TOPLEFT", hdCtrl, "BOTTOMLEFT", 0, -6)
+    hdScroll:SetPoint("BOTTOMRIGHT", 0, 0)
+
+    local hdContent = CreateFrame("Frame", nil, hdScroll)
+    hdContent:SetSize(HD_WIDTH - 44, 10)
+    hdScroll:SetScrollChild(hdContent)
+    pConsumables.content = hdContent
+    pConsumables.cards = {}
+
+    local cardW = (HD_WIDTH - 54) / 2
+    local cardH = 54
+    for i = 1, 28 do
+        local card = CreateFrame("Button", nil, hdContent, "BackdropTemplate")
+        card:SetSize(cardW, cardH)
+        card:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        card:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        card:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+        local iconFrame = CreateFrame("Frame", nil, card, "BackdropTemplate")
+        iconFrame:SetSize(38, 38)
+        iconFrame:SetPoint("LEFT", 8, 0)
+        iconFrame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = 1, right = 1, top = 1, bottom = 1 }
+        })
+        iconFrame:SetBackdropColor(0, 0, 0, 1)
+        iconFrame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        card.iconFrame = iconFrame
+
+        local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("TOPLEFT", 1, -1)
+        icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        icon:SetTexture("Interface\\Icons\\inv_potion_52")
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        card.icon = icon
+
+        local name = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        name:SetPoint("TOPLEFT", iconFrame, "TOPRIGHT", 8, 2)
+        name:SetPoint("RIGHT", -110, 0)
+        name:SetJustifyH("LEFT")
+        name:SetWordWrap(false)
+        card.name = name
+
+        local desc = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        desc:SetPoint("BOTTOMLEFT", iconFrame, "BOTTOMRIGHT", 8, 2)
+        desc:SetPoint("RIGHT", -110, 0)
+        desc:SetJustifyH("LEFT")
+        desc:SetWordWrap(false)
+        card.desc = desc
+
+        local badge = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        badge:SetPoint("RIGHT", -8, 0)
+        badge:SetWidth(100)
+        badge:SetJustifyH("RIGHT")
+        card.badge = badge
+
+        card:SetScript("OnEnter", function(selfCard)
+            if not selfCard.itemData then return end
+            selfCard:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+            GameTooltip:SetOwner(selfCard, "ANCHOR_RIGHT")
+            local _, link = SafeGetItem(selfCard.itemData.id)
+            if link then
+                GameTooltip:SetHyperlink(link)
+            else
+                GameTooltip:SetItemByID(selfCard.itemData.id)
+            end
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddDoubleLine("|cFFFFD100Efecto:|r " .. (selfCard.itemData.effect or "Mejora"), "|cFFFFD100Mínimo Requerido:|r x" .. selfCard.itemData.minCount)
+            if selfCard.itemData.tip then
+                GameTooltip:AddLine(selfCard.itemData.tip, 0.8, 0.9, 1, true)
+            end
+            if selfCard.itemData.source then
+                GameTooltip:AddLine("|cFFFFD100Fuente:|r " .. selfCard.itemData.source, 0.9, 0.8, 0.5, true)
+            end
+            local count = GetItemCount(selfCard.itemData.id, false, false) or 0
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddDoubleLine("|cFFFFD100En tus bolsas:|r", (count >= selfCard.itemData.minCount) and ("|cFF00FF00Listo (" .. count .. "/" .. selfCard.itemData.minCount .. ")|r") or ("|cFFFF5555Faltan " .. (selfCard.itemData.minCount - count) .. "|r"))
+            GameTooltip:Show()
+        end)
+        card:SetScript("OnLeave", function(selfCard)
+            selfCard:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+            GameTooltip:Hide()
+        end)
+
+        pConsumables.cards[i] = card
+    end
+
+    -- =====================================================================
+    -- 2. PANEL HD: CAMPAMENTO ÓPTIMO
+    -- =====================================================================
+    local pCamping = CreateFrame("Frame", nil, panelsContainer)
+    pCamping:SetAllPoints()
+    pCamping:Hide()
+    f.panels["camping"] = pCamping
+
+    -- Columna izquierda: Visor y configuración del fogón (260px)
+    local campLeft = CreateFrame("Frame", nil, pCamping, "BackdropTemplate")
+    campLeft:SetPoint("TOPLEFT", 0, 0)
+    campLeft:SetPoint("BOTTOMLEFT", 0, 0)
+    campLeft:SetWidth(260)
+    campLeft:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    campLeft:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    campLeft:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+    pCamping.leftPanel = campLeft
+
+    local leftTitle = campLeft:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    leftTitle:SetPoint("TOPLEFT", 10, -10)
+    leftTitle:SetText("|cFFFFD100Kit de Fogón de Campamento|r")
+
+    local hdCampfireBtn = CreateFrame("Button", nil, campLeft, "BackdropTemplate")
+    hdCampfireBtn:SetPoint("TOPLEFT", leftTitle, "BOTTOMLEFT", 0, -8)
+    hdCampfireBtn:SetSize(240, 26)
+    hdCampfireBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    hdCampfireBtn:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+    hdCampfireBtn:SetBackdropBorderColor(unpack(PREP_COLORS.headerBorder))
+    hdCampfireBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    local hdFireText = hdCampfireBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hdFireText:SetPoint("CENTER")
+    hdFireText:SetText("|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Fogón: Oficial (5 ranuras)")
+    hdCampfireBtn.text = hdFireText
+    hdCampfireBtn:SetScript("OnClick", function(_, mouseBtn)
+        RaidPrep:CycleCampfire(mouseBtn == "RightButton")
+        RaidPrep:UpdateHDCamping()
+    end)
+    pCamping.campfireBtn = hdCampfireBtn
+
+    local hdScanBtn = CreateFrame("Button", nil, campLeft, "BackdropTemplate")
+    hdScanBtn:SetPoint("TOPLEFT", hdCampfireBtn, "BOTTOMLEFT", 0, -6)
+    hdScanBtn:SetSize(240, 24)
+    hdScanBtn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    hdScanBtn:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+    hdScanBtn:SetBackdropBorderColor(unpack(PREP_COLORS.tabBorder))
+
+    local hdScanText = hdScanBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hdScanText:SetPoint("CENTER")
+    hdScanText:SetText("|TInterface\\Icons\\inv_misc_groupneedmore:14:14:0:0|t Auto-Detectar Grupo")
+    hdScanBtn.text = hdScanText
+    hdScanBtn:SetScript("OnClick", function()
+        RaidPrep:ScanParty()
+        RaidPrep:UpdateHDCamping()
+    end)
+    pCamping.scanBtn = hdScanBtn
+
+    local synergyDesc = campLeft:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    synergyDesc:SetPoint("TOPLEFT", hdScanBtn, "BOTTOMLEFT", 0, -12)
+    synergyDesc:SetPoint("RIGHT", -10, 0)
+    synergyDesc:SetJustifyH("LEFT")
+    synergyDesc:SetSpacing(4)
+    synergyDesc:SetText("|cFFFFD100Sinergia de Grupo:|r\n· Sin solapamiento de beneficios\n· Ponderación automática por rol\n· Beneficio continuo de 1 hora")
+    pCamping.synergyDesc = synergyDesc
+
+    -- Ranuras de fogón visuales circulares (1 a 10)
+    pCamping.slotOrbs = {}
+    for orbIdx = 1, 10 do
+        local orb = CreateFrame("Frame", nil, campLeft, "BackdropTemplate")
+        orb:SetSize(42, 42)
+        local col = (orbIdx - 1) % 5
+        local row = math.floor((orbIdx - 1) / 5)
+        orb:SetPoint("TOPLEFT", 12 + col * 48, -190 - row * 50)
+        orb:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        orb:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+        orb:SetBackdropBorderColor(0.4, 0.35, 0.2, 0.8)
+
+        local orbIcon = orb:CreateTexture(nil, "ARTWORK")
+        orbIcon:SetSize(36, 36)
+        orbIcon:SetPoint("CENTER")
+        orbIcon:SetTexture("Interface\\Icons\\inv_misc_questionmark")
+        orb.icon = orbIcon
+
+        local orbNum = orb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        orbNum:SetPoint("BOTTOMRIGHT", -2, 2)
+        orbNum:SetText("#" .. orbIdx)
+        orb.num = orbNum
+
+        pCamping.slotOrbs[orbIdx] = orb
+    end
+
+    -- Columna derecha: Grid de Mejoras de Campamento (520px)
+    local campScroll = CreateFrame("ScrollFrame", "AwakeningHDCampScroll", pCamping, "UIPanelScrollFrameTemplate")
+    campScroll:SetPoint("TOPLEFT", campLeft, "TOPRIGHT", 10, 0)
+    campScroll:SetPoint("BOTTOMRIGHT", 0, 0)
+
+    local campContent = CreateFrame("Frame", nil, campScroll)
+    campContent:SetSize(510, 10)
+    campScroll:SetScrollChild(campContent)
+    pCamping.content = campContent
+    pCamping.cards = {}
+
+    for i = 1, 20 do
+        local row = CreateFrame("Button", nil, campContent, "BackdropTemplate")
+        row:SetSize(505, 46)
+        row:SetPoint("TOPLEFT", 0, -((i - 1) * 48))
+        row:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        row:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        row:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+        local iconFrame = CreateFrame("Frame", nil, row, "BackdropTemplate")
+        iconFrame:SetSize(34, 34)
+        iconFrame:SetPoint("LEFT", 8, 0)
+        iconFrame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+            insets = { left = 1, right = 1, top = 1, bottom = 1 }
+        })
+        iconFrame:SetBackdropColor(0, 0, 0, 1)
+        iconFrame:SetBackdropBorderColor(0.5, 0.4, 0.2, 0.8)
+        row.iconFrame = iconFrame
+
+        local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+        icon:SetPoint("TOPLEFT", 1, -1)
+        icon:SetPoint("BOTTOMRIGHT", -1, 1)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        row.icon = icon
+
+        local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        name:SetPoint("TOPLEFT", iconFrame, "TOPRIGHT", 8, 2)
+        name:SetPoint("RIGHT", -135, 0)
+        name:SetJustifyH("LEFT")
+        name:SetWordWrap(false)
+        row.name = name
+
+        local desc = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        desc:SetPoint("BOTTOMLEFT", iconFrame, "BOTTOMRIGHT", 8, 2)
+        desc:SetPoint("RIGHT", -135, 0)
+        desc:SetJustifyH("LEFT")
+        desc:SetWordWrap(false)
+        row.desc = desc
+
+        local badge = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        badge:SetPoint("RIGHT", -8, 0)
+        badge:SetWidth(125)
+        badge:SetJustifyH("RIGHT")
+        row.badge = badge
+
+        row:SetScript("OnEnter", function(selfRow)
+            local itm = selfRow.itemData
+            if not itm then return end
+            selfRow:SetBackdropColor(unpack(PREP_COLORS.cardHoverBg))
+            GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine((itm.isConflicted and "|cFFFF5555" or "|cFF00FF00") .. itm.name .. "|r", 1, 0.82, 0)
+            GameTooltip:AddLine(itm.effectDesc or itm.effect, 1, 1, 1, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddDoubleLine("|cFFFFD100Profesión:|r " .. itm.profession .. " (" .. itm.skillReq .. ")", "|cFFFFD100Copia bufo:|r " .. (itm.classCopy or "Ninguno"))
+            if itm.conflictReason then
+                GameTooltip:AddLine("|cFFFF5555[!] " .. itm.conflictReason .. "|r", 1, 0.4, 0.4, true)
+            end
+            local cnt = GetItemCount(itm.id, false, false) or 0
+            GameTooltip:AddLine(cnt > 0 and "|cFF00FF00En tus bolsas: " .. cnt .. "|r" or "|cFFFF5555No lo tienes en tus bolsas|r")
+            GameTooltip:Show()
+        end)
+        row:SetScript("OnLeave", function(selfRow)
+            selfRow:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+            GameTooltip:Hide()
+        end)
+
+        pCamping.cards[i] = row
+    end
+
+    -- =====================================================================
+    -- 3. PANEL HD: AUDITORÍA DE BANDA (40-MAN MATRIX)
+    -- =====================================================================
+    local pAudit = CreateFrame("Frame", nil, panelsContainer)
+    pAudit:SetAllPoints()
+    pAudit:Hide()
+    f.panels["audit"] = pAudit
+
+    local auditHeader = CreateFrame("Frame", nil, pAudit)
+    auditHeader:SetPoint("TOPLEFT", 0, 0)
+    auditHeader:SetPoint("TOPRIGHT", 0, 0)
+    auditHeader:SetHeight(28)
+
+    local auditTitle = auditHeader:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    auditTitle:SetPoint("LEFT", 0, 0)
+    auditTitle:SetText("|cFFFFD100Auditoría de Banda en Vivo (40 Jugadores · AWK_COMP)|r")
+
+    local btnBroadcastAudit = CreateFrame("Button", nil, auditHeader, "BackdropTemplate")
+    btnBroadcastAudit:SetPoint("RIGHT", 0, 0)
+    btnBroadcastAudit:SetSize(180, 24)
+    btnBroadcastAudit:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btnBroadcastAudit:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+    btnBroadcastAudit:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+    local bText = btnBroadcastAudit:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bText:SetPoint("CENTER")
+    bText:SetText("|TInterface\\Icons\\inv_misc_groupneedmore:14:14:0:0|t Solicitar Estado")
+    btnBroadcastAudit.text = bText
+    btnBroadcastAudit:SetScript("OnClick", function()
+        RaidPrep:BroadcastStatus()
+        ns.Print("Auditoría HD: Solicitud de presencia y estado transmitida.")
+    end)
+
+    -- Matriz de 40 tarjetas de banda (4 columnas x 10 filas)
+    local matrixFrame = CreateFrame("Frame", nil, pAudit)
+    matrixFrame:SetPoint("TOPLEFT", auditHeader, "BOTTOMLEFT", 0, -6)
+    matrixFrame:SetPoint("BOTTOMRIGHT", 0, 0)
+    pAudit.matrixFrame = matrixFrame
+    pAudit.cells = {}
+
+    local cellW = (HD_WIDTH - 54) / 4
+    local cellH = 34
+    for i = 1, 40 do
+        local cell = CreateFrame("Frame", nil, matrixFrame, "BackdropTemplate")
+        cell:SetSize(cellW, cellH)
+        local col = (i - 1) % 4
+        local row = math.floor((i - 1) / 4)
+        cell:SetPoint("TOPLEFT", col * (cellW + 8), -row * (cellH + 5))
+        cell:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        cell:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        cell:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+
+        local icon = cell:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(20, 20)
+        icon:SetPoint("LEFT", 6, 0)
+        icon:SetTexture("Interface\\WorldStateFrame\\Icons-Classes")
+        cell.icon = icon
+
+        local name = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 6, -1)
+        name:SetPoint("RIGHT", -40, 0)
+        name:SetJustifyH("LEFT")
+        name:SetWordWrap(false)
+        cell.name = name
+
+        local bar = CreateFrame("Frame", nil, cell, "BackdropTemplate")
+        bar:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 6, 1)
+        bar:SetPoint("BOTTOMRIGHT", -42, 1)
+        bar:SetHeight(8)
+        bar:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        bar:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
+        bar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+
+        local barFill = bar:CreateTexture(nil, "ARTWORK")
+        barFill:SetPoint("TOPLEFT", 1, -1)
+        barFill:SetPoint("BOTTOMLEFT", 1, 1)
+        barFill:SetWidth(10)
+        barFill:SetTexture("Interface\\Buttons\\WHITE8x8")
+        barFill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+        cell.barFill = barFill
+
+        local badge = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        badge:SetPoint("RIGHT", -4, 0)
+        badge:SetWidth(36)
+        badge:SetJustifyH("RIGHT")
+        cell.badge = badge
+
+        pAudit.cells[i] = cell
+    end
+
+    -- =====================================================================
+    -- BARRA INFERIOR DE ACCIONES HD
+    -- =====================================================================
+    local bottomBar = CreateFrame("Frame", nil, f)
+    bottomBar:SetSize(HD_WIDTH - 20, 36)
+    bottomBar:SetPoint("BOTTOM", 0, 10)
+
+    local btnBroadcast = ns.CreateGameButton and ns.CreateGameButton(bottomBar, nil, "Transmitir al Grupo / Banda", 230, 28)
+    if not btnBroadcast then
+        btnBroadcast = CreateFrame("Button", nil, bottomBar, "BackdropTemplate")
+        btnBroadcast:SetSize(230, 28)
+        btnBroadcast:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btnBroadcast:SetBackdropColor(unpack(PREP_COLORS.tabActiveBg))
+        btnBroadcast:SetBackdropBorderColor(unpack(PREP_COLORS.headerBorder))
+        local bt = btnBroadcast:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        bt:SetPoint("CENTER")
+        bt:SetText("Transmitir al Grupo / Banda")
+    end
+    btnBroadcast:SetPoint("LEFT", 0, 0)
+    btnBroadcast:SetScript("OnClick", function()
+        if activeHDTab == "camping" then
+            RaidPrep:BroadcastCamp()
+        else
+            RaidPrep:BroadcastStatus()
+        end
+    end)
+
+    local btnScan = ns.CreateGameButton and ns.CreateGameButton(bottomBar, nil, "Reescanear Inventario", 200, 28)
+    if not btnScan then
+        btnScan = CreateFrame("Button", nil, bottomBar, "BackdropTemplate")
+        btnScan:SetSize(200, 28)
+        btnScan:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btnScan:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        btnScan:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+        local bt = btnScan:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        bt:SetPoint("CENTER")
+        bt:SetText("Reescanear Inventario")
+    end
+    btnScan:SetPoint("LEFT", btnBroadcast, "RIGHT", 10, 0)
+    btnScan:SetScript("OnClick", function()
+        RaidPrep:Update()
+        RaidPrep:UpdateHD()
+        ns.Print("Preparación HD: Inventario reescaneado exitosamente.")
+    end)
+
+    local btnClose = ns.CreateGameButton and ns.CreateGameButton(bottomBar, nil, "Cerrar Visor", 140, 28)
+    if not btnClose then
+        btnClose = CreateFrame("Button", nil, bottomBar, "BackdropTemplate")
+        btnClose:SetSize(140, 28)
+        btnClose:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btnClose:SetBackdropColor(unpack(PREP_COLORS.cardBg))
+        btnClose:SetBackdropBorderColor(unpack(PREP_COLORS.cardBorder))
+        local bt = btnClose:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        bt:SetPoint("CENTER")
+        bt:SetText("Cerrar Visor")
+    end
+    btnClose:SetPoint("RIGHT", 0, 0)
+    btnClose:SetScript("OnClick", function() f:Hide() end)
+
+    hdViewerFrame = f
+    self:SwitchHDTab("consumables")
+end
+
+function RaidPrep:SwitchHDTab(tabId)
+    if not hdViewerFrame then return end
+    activeHDTab = tabId or "consumables"
+
+    -- Actualizar estilos de las pestañas
+    for id, tab in pairs(hdViewerFrame.tabs) do
+        if id == activeHDTab then
+            tab:SetBackdropColor(unpack(PREP_COLORS.tabActiveBg))
+            tab:SetBackdropBorderColor(unpack(PREP_COLORS.headerBorder))
+            if tab.text then tab.text:SetTextColor(1, 0.84, 0, 1) end
+        else
+            tab:SetBackdropColor(unpack(PREP_COLORS.tabInactiveBg))
+            tab:SetBackdropBorderColor(unpack(PREP_COLORS.tabBorder))
+            if tab.text then tab.text:SetTextColor(0.8, 0.7, 0.5, 1) end
+        end
+    end
+
+    -- Conmutar visibilidad de paneles
+    for id, panel in pairs(hdViewerFrame.panels) do
+        panel:SetShown(id == activeHDTab)
+    end
+
+    self:UpdateHD()
+end
+
+function RaidPrep:UpdateHD()
+    if not hdViewerFrame or not hdViewerFrame:IsShown() then return end
+
+    local localizedClass, playerClass = UnitClass("player")
+    localizedClass = localizedClass or playerClass or "Aventurero"
+    local playerLevel = UnitLevel("player") or 1
+
+    local list = self:GetConsumablesList()
+    local readyCount = 0
+    for _, itm in ipairs(list) do
+        if (GetItemCount(itm.id, false, false) or 0) >= itm.minCount then
+            readyCount = readyCount + 1
+        end
+    end
+    local pct = (#list > 0) and math.floor((readyCount / #list) * 100) or 0
+
+    if hdViewerFrame.subtitleText then
+        hdViewerFrame.subtitleText:SetText(string.format(
+            "|cFFCCAA66SUITE DE PREPARACIÓN · %s (NIVEL %d) · READINESS: %d/%d (%d%%)|r",
+            localizedClass:upper(),
+            playerLevel,
+            readyCount,
+            #list,
+            pct
+        ))
+    end
+
+    if activeHDTab == "consumables" then
+        self:UpdateHDConsumables()
+    elseif activeHDTab == "camping" then
+        self:UpdateHDCamping()
+    elseif activeHDTab == "audit" then
+        self:UpdateHDAudit()
+    end
+end
+
+function RaidPrep:UpdateHDConsumables()
+    local p = hdViewerFrame and hdViewerFrame.panels["consumables"]
+    if not p then return end
+
+    local list, bracketData, activeSpec = self:GetConsumablesList()
+    local readyCount = 0
+    local missingCount = 0
+    local totalCount = #list
+
+    for _, itm in ipairs(list) do
+        local cnt = GetItemCount(itm.id, false, false) or 0
+        if cnt >= itm.minCount then
+            readyCount = readyCount + 1
+        else
+            missingCount = missingCount + 1
+        end
+    end
+    local pct = (totalCount > 0) and math.floor((readyCount / totalCount) * 100) or 0
+
+    -- Actualizar barra gauge
+    if p.gauge then
+        local fillW = math.max(2, math.floor(143 * (readyCount / (totalCount > 0 and totalCount or 1))))
+        p.gauge.fill:SetWidth(fillW)
+        if pct >= 80 then
+            p.gauge.fill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+        elseif pct >= 40 then
+            p.gauge.fill:SetVertexColor(unpack(PREP_COLORS.warnAmber))
+        else
+            p.gauge.fill:SetVertexColor(unpack(PREP_COLORS.dangerRed))
+        end
+        p.gauge.text:SetText(string.format("%d%% Listo (%d/%d)", pct, readyCount, totalCount))
+    end
+
+    -- Actualizar controles
+    if p.specBtn and p.specBtn.text and activeSpec then
+        p.specBtn.text:SetText(activeSpec.name:gsub("%s*%(.-%)", ""))
+    end
+    if p.modeBtn and p.modeBtn.text then
+        local pLvl = UnitLevel("player") or 1
+        local modeText = previewRaidMode and "Modo: Banda (60)" or (pLvl >= 60 and "Banda (60)" or ("Leveleo (" .. bracketData.short .. ")"))
+        p.modeBtn.text:SetText(modeText)
+    end
+
+    -- Chips
+    if p.chips then
+        local allC = p.chips["all"]
+        if allC and allC.text then
+            allC.text:SetText(string.format("Todos (%d)", totalCount))
+            allC:SetBackdropColor(unpack(self.activeFilter == "all" and PREP_COLORS.tabActiveBg or PREP_COLORS.tabInactiveBg))
+        end
+        local misC = p.chips["missing"]
+        if misC and misC.text then
+            misC.text:SetText(string.format("Faltan (%d)", missingCount))
+            misC:SetBackdropColor(unpack(self.activeFilter == "missing" and PREP_COLORS.tabActiveBg or PREP_COLORS.tabInactiveBg))
+        end
+        local rdyC = p.chips["ready"]
+        if rdyC and rdyC.text then
+            rdyC.text:SetText(string.format("Listos (%d)", readyCount))
+            rdyC:SetBackdropColor(unpack(self.activeFilter == "ready" and PREP_COLORS.tabActiveBg or PREP_COLORS.tabInactiveBg))
+        end
+    end
+
+    -- Filtrar y poblar tarjetas (2 columnas)
+    local displayList = {}
+    for _, item in ipairs(list) do
+        local count = GetItemCount(item.id, false, false) or 0
+        local isReady = (count >= item.minCount)
+        if self.activeFilter == "all" then
+            table.insert(displayList, item)
+        elseif self.activeFilter == "missing" and not isReady then
+            table.insert(displayList, item)
+        elseif self.activeFilter == "ready" and isReady then
+            table.insert(displayList, item)
+        end
+    end
+
+    local cardW = (HD_WIDTH - 54) / 2
+    local cardH = 54
+    for i, card in ipairs(p.cards) do
+        local itemData = displayList[i]
+        if itemData then
+            card.itemData = itemData
+            card:Show()
+
+            local col = (i - 1) % 2
+            local row = math.floor((i - 1) / 2)
+            card:SetPoint("TOPLEFT", col * (cardW + 8), -row * (cardH + 6))
+
+            local count = GetItemCount(itemData.id, false, false) or 0
+            local isReady = (count >= itemData.minCount)
+
+            local name, link, quality, texture = SafeGetItem(itemData.id)
+            local itemTex = texture or GetItemTextureSafe(itemData.id, itemData.icon)
+            card.icon:SetTexture(itemTex)
+
+            local qc = "|cFFFFFFFF"
+            local q = quality or itemData.quality or 1
+            local br, bg, bb = 0.4, 0.4, 0.4
+            if q == 4 then
+                qc = "|cFFA335EE"; br, bg, bb = 0.64, 0.21, 0.93
+            elseif q == 3 then
+                qc = "|cFF0070DD"; br, bg, bb = 0.0, 0.44, 0.87
+            elseif q == 2 then
+                qc = "|cFF1EFF00"; br, bg, bb = 0.12, 1.0, 0.0
+            end
+            if card.iconFrame then
+                card.iconFrame:SetBackdropBorderColor(br, bg, bb, 1)
+            end
+
+            card.name:SetText(link or (qc .. (name or itemData.name) .. string.format(" |cFF888888(x%d)|r", itemData.minCount)))
+
+            local dynEffect = self:GetDynamicItemEffect(itemData.id)
+            local effStr = dynEffect or itemData.effect or "Mejora"
+            card.desc:SetText(string.format("|cFF00FFCC%s|r · |cFFC79C6E%s|r", effStr, itemData.source or "Proveedor"))
+
+            if isReady then
+                card.badge:SetText(string.format("|cFF00FF00[LISTO x%d]|r", count))
+            elseif count > 0 then
+                card.badge:SetText(string.format("|cFFFFCC00[FALTAN %d]|r", itemData.minCount - count))
+            else
+                card.badge:SetText(string.format("|cFFFF5555[FALTAN %d]|r", itemData.minCount))
+            end
+        else
+            card.itemData = nil
+            card:Hide()
+        end
+    end
+
+    local totalRows = math.ceil(#displayList / 2)
+    p.content:SetHeight(math.max(10, totalRows * (cardH + 6)))
+end
+
+function RaidPrep:UpdateHDCamping()
+    local p = hdViewerFrame and hdViewerFrame.panels["camping"]
+    if not p then return end
+
+    local fullList, recommended, discarded, selectedFire, partyCount = self:GetOptimizedCampingList()
+    local fireName = selectedFire and selectedFire.name:gsub("Kit de fogón ", "") or "Oficial"
+    local fireSlots = selectedFire and selectedFire.slots or 5
+
+    if p.campfireBtn and p.campfireBtn.text then
+        p.campfireBtn.text:SetText(string.format("|TInterface\\Icons\\spell_fire_fire:14:14:0:0|t Fogón: %s (%d ranuras)", fireName, fireSlots))
+    end
+
+    if p.synergyDesc then
+        p.synergyDesc:SetText(string.format(
+            "|cFFFFD100Sinergia de Grupo:|r\n· |cFF00FF00%d miembros|r en el grupo\n· |cFFFFD100%d ranuras|r en este fogón\n· |cFF%s%d solapados evitados|r\n· Beneficio continuo de 1 hora al descansar junto al fuego",
+            partyCount,
+            fireSlots,
+            #discarded > 0 and "FF5555" or "00FF00",
+            #discarded
+        ))
+    end
+
+    -- Actualizar las 10 ranuras visuales circulares
+    for idx = 1, 10 do
+        local orb = p.slotOrbs[idx]
+        if orb then
+            if idx <= fireSlots then
+                orb:Show()
+                local recItem = recommended[idx]
+                if recItem then
+                    orb.icon:SetTexture(recItem.icon or "Interface\\Icons\\inv_misc_questionmark")
+                    orb:SetBackdropBorderColor(0.2, 0.8, 0.2, 1)
+                else
+                    orb.icon:SetTexture("Interface\\Icons\\spell_fire_fire")
+                    orb:SetBackdropBorderColor(0.5, 0.4, 0.2, 0.8)
+                end
+            else
+                orb:Hide()
+            end
+        end
+    end
+
+    -- Poblar lista de tarjetas detalladas de campamento
+    for i, card in ipairs(p.cards) do
+        local itemData = fullList[i]
+        if itemData then
+            card.itemData = itemData
+            card:Show()
+
+            local count = GetItemCount(itemData.id, false, false) or 0
+            local countTag = count > 0 and "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12:0:0|t " or ""
+
+            card.icon:SetTexture(itemData.icon or "Interface\\Icons\\inv_misc_questionmark")
+
+            if itemData.isConflicted then
+                card.badge:SetText("|cFFFF5555[SOLAPA: " .. (CLASS_NAMES_ES[itemData.conflictClass] or itemData.conflictClass or "Clase") .. "]|r")
+                card.name:SetText("|cFF888888" .. itemData.name .. "|r")
+                card.desc:SetText(string.format("|cFFFF5555[!] %s|r · |cFF888888%s (%d)|r", itemData.conflictReason or "Solapamiento", itemData.profession, itemData.skillReq or 20))
+            elseif itemData.isRecommended then
+                card.badge:SetText(string.format("|cFF00FF00[FOGÓN #%d]|r", itemData.slotOrder or 1))
+                card.name:SetText(countTag .. "|cFFFFD100" .. itemData.name .. "|r")
+                card.desc:SetText(string.format("|cFF00FFCC%s|r · |cFFC79C6E%s (%d)|r", itemData.effect or "Mejora", itemData.profession, itemData.skillReq or 20))
+            else
+                card.badge:SetText("|cFFFFCC00[EXTRA]|r")
+                card.name:SetText(countTag .. "|cFFFFFFFF" .. itemData.name .. "|r")
+                card.desc:SetText(string.format("|cFFFFCC00%s|r · |cFF888888%s (%d)|r", itemData.effect or "Mejora", itemData.profession, itemData.skillReq or 20))
+            end
+        else
+            card.itemData = nil
+            card:Hide()
+        end
+    end
+
+    p.content:SetHeight(math.max(10, #fullList * 48))
+end
+
+function RaidPrep:UpdateHDAudit()
+    local p = hdViewerFrame and hdViewerFrame.panels["audit"]
+    if not p then return end
+
+    local members = {}
+    local numGroup = GetNumGroupMembers() or 0
+
+    if IsInRaid() and numGroup > 0 then
+        for i = 1, numGroup do
+            local name, rank, subgroup, level, class, fileName = GetRaidRosterInfo(i)
+            if name then
+                local shortName = name:gsub("%-.*$", "")
+                table.insert(members, {
+                    name = shortName,
+                    fullName = name,
+                    class = fileName or class or "WARRIOR",
+                    unit = "raid" .. i,
+                    isPlayer = UnitIsUnit("raid" .. i, "player"),
+                })
+            end
+        end
+    elseif numGroup > 0 then
+        local myName = UnitName("player")
+        local _, myClass = UnitClass("player")
+        table.insert(members, {
+            name = myName,
+            fullName = myName,
+            class = myClass or "WARRIOR",
+            unit = "player",
+            isPlayer = true,
+        })
+        for i = 1, 4 do
+            local unit = "party" .. i
+            if UnitExists(unit) then
+                local uName = UnitName(unit)
+                local _, uClass = UnitClass(unit)
+                if uName then
+                    local shortName = uName:gsub("%-.*$", "")
+                    table.insert(members, {
+                        name = shortName,
+                        fullName = uName,
+                        class = uClass or "WARRIOR",
+                        unit = unit,
+                        isPlayer = false,
+                    })
+                end
+            end
+        end
+    else
+        local myName = UnitName("player")
+        local _, myClass = UnitClass("player")
+        table.insert(members, {
+            name = myName,
+            fullName = myName,
+            class = myClass or "WARRIOR",
+            unit = "player",
+            isPlayer = true,
+        })
+    end
+
+    -- Datos propios
+    local myList = self:GetConsumablesList()
+    local myReady = 0
+    for _, it in ipairs(myList) do
+        if (GetItemCount(it.id, false, false) or 0) >= it.minCount then
+            myReady = myReady + 1
+        end
+    end
+    local myTotal = #myList
+
+    for i, cell in ipairs(p.cells) do
+        local m = members[i]
+        if m then
+            cell:Show()
+
+            local cCoords = CLASS_ICON_COORDS[m.class]
+            if cCoords then
+                cell.icon:SetTexture("Interface\\WorldStateFrame\\Icons-Classes")
+                cell.icon:SetTexCoord(unpack(cCoords))
+            else
+                cell.icon:SetTexture("Interface\\Icons\\inv_misc_questionmark")
+                cell.icon:SetTexCoord(0, 1, 0, 1)
+            end
+
+            local cColor = CLASS_COLORS[m.class] or "FFFFFF"
+            cell.name:SetText(string.format("|cFF%s%s|r%s", cColor, m.name, m.isPlayer and " |cFFFFD100(Tú)|r" or ""))
+
+            local ready, total
+            if m.isPlayer then
+                ready = myReady
+                total = myTotal
+            else
+                local comm = partyCommsData[m.name]
+                if comm then
+                    ready = comm.ready
+                    total = comm.total
+                end
+            end
+
+            local maxBarWidth = cell:GetWidth() - 72
+            if ready and total and total > 0 then
+                local pct = math.floor((ready / total) * 100)
+                local barW = math.max(2, math.floor(maxBarWidth * (ready / total)))
+                cell.barFill:SetWidth(barW)
+                if pct >= 80 then
+                    cell.barFill:SetVertexColor(unpack(PREP_COLORS.readyGreen))
+                    cell.badge:SetText(string.format("|cFF00FF00%d%%|r", pct))
+                elseif pct >= 40 then
+                    cell.barFill:SetVertexColor(unpack(PREP_COLORS.warnAmber))
+                    cell.badge:SetText(string.format("|cFFFFCC00%d%%|r", pct))
+                else
+                    cell.barFill:SetVertexColor(unpack(PREP_COLORS.dangerRed))
+                    cell.badge:SetText(string.format("|cFFFF5555%d%%|r", pct))
+                end
+            else
+                cell.barFill:SetWidth(2)
+                cell.barFill:SetVertexColor(0.4, 0.4, 0.4, 0.6)
+                cell.badge:SetText("|cFF888888--|r")
+            end
+        else
+            cell:Hide()
+        end
+    end
+end
+
+function RaidPrep:OpenHD(tabId)
+    self:InitHD()
+    if hdViewerFrame then
+        hdViewerFrame:Show()
+        self:SwitchHDTab(tabId or "consumables")
+    end
+end
+
+function RaidPrep:ToggleHD()
+    self:InitHD()
+    if hdViewerFrame then
+        if hdViewerFrame:IsShown() then
+            hdViewerFrame:Hide()
+        else
+            self:OpenHD(self.currentSubMode or "consumables")
+        end
+    end
 end

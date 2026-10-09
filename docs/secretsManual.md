@@ -1,23 +1,83 @@
 # 📜 Manual de Secretos, Cadenas y Guías Contextuales — Awakening: Companion
 
-> **Documento de arquitectura técnica, estándares de diseño y manual de extensión para asistentes y desarrolladores de Antigravity IDE.**
+> **Documento de arquitectura técnica, estándares de diseño, modelos de datos y manual de extensión para asistentes y desarrolladores de Antigravity IDE.**
 
 ---
 
 ## 1. Filosofía de Diseño: "Cero Ruido e Información Oportuna"
 
-El catálogo de **Guías & Secretos** en Awakening Companion no es una lista estática tradicional de misiones. Funciona como un **sistema de recomendación contextual activo**:
+El catálogo de **Guías & Secretos** en Awakening Companion no es una lista estática tradicional de misiones. Funciona como un **sistema de recomendación contextual activo y centro editorial interactivo** dividido en tres grandes familias:
 
-1. **Relevancia por Nivel y Progresión:** Una guía solo se presenta al jugador cuando este se encuentra en la ventana óptima de nivel o habilidad para aprovecharla.
+1. **Relevancia por Nivel y Progresión:** Una guía o secreto solo se presenta de forma destacada al jugador cuando este se encuentra en la ventana óptima de nivel o habilidad para aprovecharla.
 2. **Cero Saturación en Niveles Altos:** Misiones de leveleo temprano (como el *Saco de Dormir Acogedor*, óptimo entre niveles 14 y 28) se ocultan automáticamente si el personaje ya superó el rango o es nivel 60, evitando saturar la interfaz con contenido obsoleto, a menos que el usuario marque explícitamente la casilla *"Mostrar secretos antiguos"*.
 3. **Detección Dinámica de Profesiones:** Las guías vinculadas a recetas, libros de aprendizaje o hitos de habilidad solo se activan cuando el jugador posee la profesión y su rango se aproxima al límite de entrenamiento.
 4. **Auto-Descarte Definitivo (`autoHideCompleted`):** Ciertas guías (como comprar el libro *Cocina para expertos*) pierden todo sentido una vez aprendidas; en cuanto el jugador alcanza la habilidad superior o usa el libro, la guía desaparece de forma permanente.
+5. **Arquitectura Editorial Tripartita:**
+   - **Secretos & Rutas:** Cadenas de misiones de exploración intercontinental, hitos secuenciales y recompensas únicas navegables paso a paso con compás 3D y HUD.
+   - **Mazmorras 5-Jug:** Guías editoriales completas estilo Wowhead con resumen, mapa de viaje en tiempo real, catálogo de misiones, tácticas de jefes y tabla de botín.
+   - **Consejos Forever:** Guías estratégicas de economía, inventario, diferencias de motor y mecánicas de juego con interfaces interactivas en modo HD, matrices de decisión y checklists persistentes.
 
 ---
 
-## 2. Arquitectura de Datos de un Secreto
+## 2. Taxonomía de Interfaz y Navegación en MainUI
 
-Cada entrada en `ns.Data.Secrets` se estructura con metadatos de clasificación, restricciones de nivel/profesión, recompensas enriquecidas y la secuencia de pasos:
+La interfaz principal en [Modules/MainUI.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/MainUI.lua) organiza el catálogo de guías mediante una barra superior de sub-pestañas pill y una botonera de filtros chips:
+
+### 2.1 Sub-Pestañas Temáticas (`SECRETS_SUBTABS`)
+Ubicadas en la parte superior del listado para segmentar el contenido según la intención del jugador:
+
+```lua
+local SECRETS_SUBTABS = {
+    { id = "secrets",  text = "Secretos & Rutas", icon = "Interface\\Icons\\inv_misc_bag_07" },
+    { id = "dungeons", text = "Mazmorras 5-Jug",  icon = "Interface\\Icons\\inv_helmet_08" },
+    { id = "tips",     text = "Consejos Forever", icon = "Interface\\Icons\\spell_holy_magicalsentry" },
+}
+```
+
+* **`secrets` (Secretos & Rutas):** Misiones canónicas de exploración y habilidades especiales (*Saco de Dormir*, *Cocina para expertos*, *Tomos de la Biblioteca*).
+* **`dungeons` (Mazmorras 5-Jug):** Fichas de mazmorras de Azeroth (*Sitio de Excavación: Los Humedales*, etc.).
+* **`tips` (Consejos Forever):** Artículos estratégicos (*Consejos para Principiantes*, *Gestión de Oro y Bank Alt*).
+
+### 2.2 Filtros Horizontales por Chips (`SECRETS_FILTERS`)
+Permiten filtrar dinámicamente las filas visibles en la sub-pestaña seleccionada:
+
+```lua
+local SECRETS_FILTERS = {
+    { id = "all",       text = "Todos" },
+    { id = "level",     text = "Mi Nivel" },
+    { id = "pending",   text = "Por Descubrir" },
+    { id = "completed", text = "Completados" },
+}
+```
+
+* **`all`:** Muestra todas las guías de la categoría que no hayan sido suprimidas por reglas estrictas.
+* **`level`:** Muestra únicamente guías donde el nivel actual del jugador (`UnitLevel("player")`) esté entre `minLevel` y `maxLevel`.
+* **`pending`:** Filtra guías no completadas (`isCompleted == false`).
+* **`completed`:** Muestra exclusivamente el historial de guías culminadas con éxito.
+
+### 2.3 Medidor Semafórico Superior (Hero Progress Bar)
+La cabecera de la vista de secretos incorpora una barra de progreso de alto contraste que calcula dinámicamente:
+* Conteo de guías completadas vs totales (`completedCount / totalCount`).
+* Porcentaje de progreso (`pct%`) con barra de degradado dorado/verde (`Interface\\Buttons\\WHITE8x8`).
+* Etiqueta de resumen conciso: `"X de Y Secretos Descubiertos (Z%)"`.
+
+### 2.4 Botones Adaptativos de la Barra Inferior
+Según el elemento seleccionado, los botones de acción inferior (`MainUI:UpdateBottomButtons`) adaptan su texto y funcionalidad:
+
+| Tipo de Entrada | Botón 1 (`OnActionButton1`) | Botón 2 (`OnActionButton2`) | Botón 3 (`OnActionButton3`) |
+| :--- | :--- | :--- | :--- |
+| **Secreto con Pasos** | `Iniciar Ruta` (Abre GuideHUD / TomTom) | `Planificar Viaje` (Abre pestaña Viajes) | `Habilidades` |
+| **Mazmorra 5-Jug** | `Iniciar Ruta` (Coord. Entrada) | `Ver Guía` (Abre GuideViewer HD) | `Habilidades` |
+| **Artículo Estratégico** | `Leer Guía` (Abre GuideViewer HD) | `Modo HD` (Abre GuideViewer HD) | `Habilidades` |
+
+---
+
+## 3. Arquitectura y Modelos de Datos
+
+El archivo maestro [Data/SecretsData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/SecretsData.lua) y los archivos complementarios de datos modelan tres esquemas principales:
+
+### 3.1 Modelo de Secreto de Pasos Tradicional
+Utilizado para secretos lineales de viaje y obtención de objetos:
 
 ```lua
 ns.Data.Secrets["clave_secreto"] = {
@@ -25,7 +85,7 @@ ns.Data.Secrets["clave_secreto"] = {
     id = "clave_secreto",
     title = "Título Descriptivo en Español",
     titleEn = "English Original Name (para búsquedas)",
-    category = "Secreto Clásico" | "Habilidad de Profesión" | "Cofre Oculto" | "Cadena de Mazmorra" | "Runas & Poder",
+    category = "Secreto Clásico" | "Habilidad de Profesión" | "Cofre Oculto" | "Runas & Poder",
     faction = "Alliance" | "Horde" | "Ambas",
     icon = "Interface\\Icons\\inv_misc_book_11",
 
@@ -58,11 +118,8 @@ ns.Data.Secrets["clave_secreto"] = {
 }
 ```
 
----
-
-## 3. Esquema de Pasos (`steps`)
-
-Cada hito o etapa de viaje dentro de un secreto contiene la información geográfica y contextual necesaria tanto para el catálogo como para el compás 3D y el motor de navegación:
+### 3.2 Esquema de Pasos de Viaje (`steps`)
+Cada hito dentro de un secreto lineal define coordenadas geográficas y metadatos para el compás 3D:
 
 ```lua
 {
@@ -84,11 +141,73 @@ Cada hito o etapa de viaje dentro de un secreto contiene la información geográ
 }
 ```
 
+### 3.3 Modelo Editorial de Mazmorra (`category = "Guía"`)
+Estructurado para representar contenido complejo de mazmorras de 5 jugadores consumido por el Visor HD:
+
+```lua
+ns.Data.Secrets["excavation_site"] = {
+    id = "excavation_site",
+    title = "Sitio de Excavación: Los Humedales",
+    category = "Guía",
+    subCategory = "Mazmorra",
+    dungeonType = "dungeon",
+    faction = "Ambas",
+    level = "Nivel 24 - 30",
+    minLevel = 24,
+    maxLevel = 30,
+    icon = "Interface\\Icons\\inv_helmet_08",
+    reward = "Equipo azul raro, misiones de mazmorra y XP masiva",
+    rewardItems = { ... },
+    steps = {
+        {
+            stepNum = 1,
+            title = "1. Entrada a la Mazmorra",
+            instruction = "Dirígete a la entrada del Sitio de Excavación al este de Los Humedales.",
+            uiMapID = 1437,
+            zoneName = "Los Humedales",
+            x = 56.2, y = 40.6,
+        }
+    },
+    guideViewerData = {
+        summary = { ... },
+        quests = { ... },
+        bosses = { ... },
+        loot = { ... }
+    }
+}
+```
+
+### 3.4 Modelo de Artículos y Consejos Estratégicos (`isArticle = true`)
+Diseñado para guías no lineales centradas en lectura, checklists interactivos y matrices económicas:
+
+```lua
+ns.Data.Secrets["beginners_guide"] = {
+    id = "beginners_guide",
+    title = "Consejos para Principiantes",
+    titleEn = "Beginner's Guide & Essential Tips",
+    category = "Consejos",
+    subCategory = "Guía Estratégica",
+    faction = "Ambas",
+    level = "Nivel 1 - 60",
+    minLevel = 1,
+    maxLevel = 60,
+    icon = "Interface\\Icons\\inv_misc_book_07",
+    isArticle = true,
+    articleDataKey = "BeginnersGuide", -- Apunta a ns.Data.BeginnersGuide
+    badge = "GUÍA OFICIAL FOREVER",
+    reward = "7 capítulos: diferencias críticas, checklist interactivo y 10 errores comunes",
+}
+```
+
+La información detallada de cada artículo se aloja en su archivo modular independiente:
+* [Data/BeginnersGuideData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/BeginnersGuideData.lua) -> `ns.Data.BeginnersGuide`
+* [Data/BankAltGuideData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/BankAltGuideData.lua) -> `ns.Data.BankAltGuide`
+
 ---
 
-## 4. Arquitectura Híbrida: Canónica + Dinámica
+## 4. Arquitectura Híbrida: Canónica + Dinámica (TravelPlanner)
 
-Awakening Companion combina lo mejor de dos mundos para que el jugador nunca se pierda ni reciba instrucciones incongruentes:
+Para secretos y rutas de viaje que implican transitar largas distancias o cruzar continentes, Awakening Companion utiliza un despachador híbrido:
 
 ```
                   ┌──────────────────────────────────────────────┐
@@ -126,13 +245,9 @@ Awakening Companion combina lo mejor de dos mundos para que el jugador nunca se 
 ```
 
 ### Funciones Clave del Motor
-
-1. **`ns.GetSecretMilestoneTargetStep(secretKey, milestone)`:**
-   Resuelve el objeto paso exacto del hito objetivo de misión, desacoplando la comprobación de progreso (`1..7`) de la cantidad de pasos de viaje intercontinentales.
-2. **`ns.GetSecretMilestoneFirstStep(secretKey, milestone)`:**
-   Determina el índice del primer paso del tramo de viaje canónico si se requiere un fallback offline.
-3. **`ns.GetDynamicSecretGuide(secretKey, curMilestone)`:**
-   Evalúa la posición en tiempo real del jugador (`__player__`). Si se encuentra distante, invoca a `TravelPlanner:CalculateRoute` para generar una combinación multimodal de transportes personalizada y complementada con la entrega de la misión.
+1. **`ns.GetSecretMilestoneTargetStep(secretKey, milestone)`:** Resuelve el objeto paso exacto del hito objetivo de misión, desacoplando la comprobación de progreso (`1..N`) de los pasos intermedios de transporte.
+2. **`ns.GetSecretMilestoneFirstStep(secretKey, milestone)`:** Determina el índice del primer paso del tramo de viaje canónico en caso de fallback offline.
+3. **`ns.GetDynamicSecretGuide(secretKey, curMilestone)`:** Evalúa la posición en tiempo real del jugador (`__player__`). Si se encuentra distante, invoca a `TravelPlanner:CalculateRoute` para generar una combinación multimodal de transportes personalizada y complementada con la entrega de la misión.
 
 ---
 
@@ -144,6 +259,8 @@ Awakening Companion combina lo mejor de dos mundos para que el jugador nunca se 
 * **Comportamiento por Nivel:** Un personaje de nivel 60 ya no requiere Exp descansada de leveleo; el secreto se oculta automáticamente por defecto y solo se muestra si el usuario activa la casilla *"Mostrar secretos antiguos"*.
 * **Articulación de Pasos:** 16 pasos completos (7 hitos de misión + tramos de transporte como el Puerto de Ventormenta, Barco a Auberdine, Paso de los Carromatos, Túneles de Dun Algaz, Viaducto Thandol y Muralla de Thoradin).
 
+---
+
 ### Caso 2: Cocina para Expertos (`expert_cooking`)
 * **Propósito:** Guía para obtener el libro *Cocina para expertos* (ID `#16072`) que desbloquea el límite de cocina hasta 225, ya que en WoW Clásico ningún instructor entrena este rango.
 * **Nivel Recomendado:** `minLevel = 20`, `maxLevel = 45`.
@@ -152,146 +269,203 @@ Awakening Companion combina lo mejor de dos mundos para que el jugador nunca se 
   1. Si el jugador no tiene Cocina o su habilidad es `< 125`, la guía no aparece para no distraerlo.
   2. Si su habilidad está entre `125` y `150`, la guía aparece recomendándole comprar el libro antes de topar su límite.
   3. Si ya tiene el libro en sus bolsas (`PlayerHasItem(16072)`), la guía avanza automáticamente al Paso 2: *"Usar libro en inventario"*.
-  4. Si su habilidad supera `150` o su límite máximo ya es `225` (`maxRank > 150`), el secreto se marca como completado y **se oculta permanentemente** (`autoHideCompleted = true`), liberando espacio en la lista.
+  4. Si su habilidad supera `150` o su límite máximo ya es `225` (`maxRank > 150`), el secreto se marca como completado y **se oculta permanentemente** (`autoHideCompleted = true`).
 * **PNJ por Facción:**
   * **Alianza:** Shandrina en Vallefresno (Lago Mystral, `50.2, 67.1`, mapa `1440`).
   * **Horda:** Wulan en Desolace (Aldea Cazasombras, `26.2, 69.8`, mapa `1443`).
 
+---
+
 ### Caso 3: Tomos de la Biblioteca (`library_books`) — Collecting Library Books (WoW Forever)
-* **Propósito:** Búsqueda y recolección de tomos antiguos, diarios de investigación y pergaminos esparcidos por todo Azeroth para entregarlos al Bibliotecario de Facción. En WoW Forever esta característica se expandió a todas las clases y cuenta con un sistema escalonado de 3 Tiers con recompensas de equipo (cuello, dedos, armas/escudos) y una bonificación exclusiva para magos (*Study*).
+* **Propósito:** Búsqueda y recolección de tomos antiguos, diarios de investigación y pergaminos esparcidos por todo Azeroth para entregarlos al Bibliotecario de Facción. En WoW Forever esta característica se expandió a todas las clases y cuenta con un sistema escalonado de 3 Tiers con recompensas de equipo y una bonificación exclusiva para magos (*Study*).
 * **Nivel Recomendado:** `minLevel = 20`, `maxLevel = 60`.
 * **Bibliotecarios de Facción (Puntos de Entrega):**
   * **Alianza:** Garion Wendell (`npc=211033`), Torre de los Magos, Ciudad de Ventormenta (`49.0, 86.4`, mapa `1453`).
   * **Horda:** Owen Thadd (`npc=211022`), Barrio de la Magia, Entrañas (`74.0, 32.4`, mapa `1458`).
-* **Estructura Escalonada de Tiers y Recompensas (Canónico Wowhead):**
+* **Estructura Escalonada de Tiers y Recompensas:**
   
   | Tier | Libros Requeridos | Misión Oficial | Recompensas a Elegir |
   | :---: | :---: | :---: | :--- |
-  | **Tier 1** | **10 Libros** | `#78150` *Friend of the Library* | • **Colgante de erudito** (`277203`): +3 Aguante, +2 Espíritu (Caster/Healer)<br>• **Amuleto de erudito** (`277204`): +2 Agilidad, +3 Aguante (Melee/Cazador) |
-  | **Tier 2** | **20 Libros** | `#79536` *Greater Friend of the Library* | • **Sortija del investigador de campo** (`281634`): +7 Agilidad, +7 Aguante<br>• **Anillo de filántropo** (`281635`): +5 Intelecto, +10 Daño/Sanación con Hechizos |
-  | **Tier 3** | **25 Libros** | `#82208` *Greater Friend of the Library* | • **Arco del buscador de la verdad** (`277254`): Arco 46-87 Daño (23.8 DPS), +7 Agilidad, +3 Aguante<br>• **Blasón de elucidación** (`277258`): Escudo 1580 Armadura, +12 Espíritu, +7 Sanación, +4 Hechizos (Req Nivel 40)<br>• **Luz nocturna del investigador** (`277260`): Mano izquierda / Antorcha: +12 Aguante, +7 Hechizos de Fuego (Req Nivel 40) |
-
-* **Bonificación de Mago (Habilidad 'Estudiar'):**
-  Al entregar su primer tomo, los Magos aprenden la habilidad permanente `Estudiar` (*Study*, hechizo `#1302508`). Al canalizarla dentro de una biblioteca consumiendo 1 Pluma ligera (*Light Feather*), genera un fardo de pergaminos con un tiempo de reutilización de 1 día.
-
-* **Catálogo Maestro de Libros en Azeroth (40 Ubicaciones Canónicas):**
-
-  | # | Título del Libro | Zona | Coordenadas | Contenedor / Objeto | Quest ID | Item ID | Facción |
-  | :-: | :--- | :--- | :-: | :--- | :-: | :-: | :---: |
-  | 1 | Archmage Theocritus' Research Journal | Bosque de Elwynn | `65.4, 70.1` | Libro de biblioteca (386759) | 79092 | 203755 | Alianza |
-  | 2 | Bewitchments and Glamours | Páramos de Poniente | `45.4, 70.5` | Libro de hechizos (409562) | 78142 | 209845 | Ambas |
-  | 3 | Rumi of Gnomeregan: The Collected Works | Loch Modan / Westfall | `35.6, 48.9` | Tomo gnómico (408014) | 79093 | 208860 | Alianza |
-  | 4 | Crimes Against Anatomy | Bosque del Ocaso | `16.7, 28.5` | Libro de hechizos (409735) | 78147 | 209849 | Ambas |
-  | 5 | Runes of the Sorcerer-Kings | Loch Modan | `77.5, 14.1` | Pergaminos (409731) | 78148 | 209850 | Ambas |
-  | 6 | Goaz Scrolls | Los Humedales | `33.6, 47.9` | Pergaminos (409717) | 78146 | 209848 | Ambas |
-  | 7 | Archmage Antonidas: The Unabridged Autobiography | Forjaz | `76.3, 10.8` | Libro de biblioteca (386691) | 79091 | 203754 | Alianza |
-  | 8 | The Apothecary's Metaphysical Primer | Claros de Tirisfal | `59.5, 52.3` | Cartilla de Boticario (405879) | 79095 | 208185 | Horda |
-  | 9 | The Dalaran Digest, Vol. 23 | Bosque de Argénteos | `63.5, 63.1` | Compendio de Dalaran (409501) | 78127 | 209844 | Ambas |
-  | 10 | Ataeric: On Arcane Curiosities | Bosque de Argénteos | `43.4, 41.2` | Secretos arcanos (410299) | 79096 | 210177 | Horda |
-  | 11 | Arcanic Systems Manual | Los Baldíos | `56.3, 8.8` | Manual (409700) | 78145 | 209847 | Ambas |
-  | 12 | Baxtan: On Destructive Magics | Los Baldíos (Trinquete) | `62.7, 36.3` | Tomo goblin (407566) | 79097 | 208800 | Ambas |
-  | 13 | Secrets of the Dreamers | Los Baldíos (Cueva) | `52.8, 54.7` | Pergaminos (409562) | 78143 | 209846 | Ambas |
-  | 14 | Nar'thalas Almanac, Vol. 74 | Costa Oscura | `59.6, 22.2` | Pergaminos (409496) | 78124 | 209843 | Ambas |
-  | 15 | The Lessons of Ta'zo | Orgrimmar | `38.7, 78.4` | Tablilla rúnica (Mural) | 79094 | 207972 | Horda |
-  | 16 | Defensive Magics 101 | Montañas de Alterac | `48.4, 57.7` | Manual (423896) | 79948 | 215815 | Ambas |
-  | 17 | A Web of Lies: Debunking Myths and Legends | Tierras Altas de Arathi | `73.6, 65.2` | Pergaminos (423897) | 79949 | 215816 | Ambas |
-  | 18 | Mummies: A Guide to the Unsavory Undead | Tierras Inhóspitas | `56.7, 39.9` | Pergaminos (423899) | 79951 | 215820 | Ambas |
-  | 19 | Fury of the Land | Sierra Espolón | `74.4, 85.7` | Pergaminos (409711) | 78149 | 209851 | Ambas |
-  | 20 | Geomancy: The Stone-Cold Truth | Las Mil Agujas | `34.0, 40.0` | Pergaminos (423895) | 79947 | 215683 | Ambas |
-  | 21 | Basilisks: Should Petrification be Feared? | Vega de Tuercespina | `41.5, 50.8` | Notas de investigación (421526) | 79535 | 213165 | Ambas |
-  | 22 | RwlRwlRwlRwl! | Marjal Revolcafango | `57.0, 21.0` | Libro empapado (423900) | 79952 | 215822 | Ambas |
-  | 23 | Demons and You | Desolace | `55.1, 26.2` | Libro misterioso (423898) | 79950 | 215817 | Ambas |
-  | 24 | A Luddite's Guide to Caring for Your Demonic Pet | Pantano de las Penas | `61.0, 22.0` | Libro en jaula (423901) | 79953 | 215824 | Ambas |
-  | 25 | Sanguine Sorcery | Pantano de las Penas | `70.1, 51.8` | Libro en ruinas | - | - | Ambas |
-  | 26 | Everyday Etiquette | Azshara | `20.8, 62.0` | Libro sobre podio | - | - | Ambas |
-  | 27 | Venomous Journeys | Tierras del Interior | `36.0, 72.8` | Libro en ruinas trol | - | - | Ambas |
-  | 28 | A Mind of Metal | Garganta de Fuego | `37.8, 49.3` | Libro campamento enano | - | - | Ambas |
-  | 29 | Stonewrought Design | Estepas Ardientes | `29.1, 28.9` | Libro sobre repisa | - | 220349 | Ambas |
-  | 30 | Magma or Lava? | Montaña Roca Negra | `48.4, 63.6` | Libro exterior BRD | - | 228133 | Ambas |
-  | 31 | The Liminal and the Arcane | Feralas | `50.6, 15.7` | Libro ruinas élficas | - | 220347 | Ambas |
-  | 32 | Legends of the Tidesages | Tanaris | `72.6, 47.8` | Libro campamento pirata | - | - | Ambas |
-  | 33 | Conjurer's Codex | Las Tierras Devastadas | `55.4, 32.2` | Códice en riscos | - | - | Ambas |
-  | 34 | Northern Kalimdor - A Comprehensive Guide | Frondavil | `65.2, 3.2` | Libro en Timbermaw | - | 228134 | Ambas |
-  | 35 | Undead Potatoes | Tierras de la Peste del Oeste | `38.3, 54.6` | Granja Felstone (escaleras) | - | 228132 | Ambas |
-  | 36 | Necromancy 101 | Tierras de la Peste del Oeste | `69.4, 72.8` | Scholomance azotea (mesa) | - | 228141 | Ambas |
-  | 37 | A Study of the Light | Tierras de la Peste del Este | `73.0, 65.0` | Capilla Esperanza de la Luz | - | 228135 | Ambas |
-  | 38 | Scourge: Undead Menace or Misunderstood? | Tierras de la Peste del Este | `31.3, 21.0` | Mesa exterior Stratholme | - | 228140 | Ambas |
-  | 39 | The Knight and the Lady | Tierras de la Peste del Este | `54.5, 50.8` | Ruinas este de Corin | - | 228138 | Ambas |
-  | 40 | Ka-Boom! | Cuna del Invierno | `60.7, 37.7` | Tienda alquimia Everlook | - | 228136 | Ambas |
+  | **Tier 1** | **10 Libros** | `#78150` *Friend of the Library* | • **Colgante de erudito** (`277203`): +3 Aguante, +2 Espíritu<br>• **Amuleto de erudito** (`277204`): +2 Agilidad, +3 Aguante |
+  | **Tier 2** | **20 Libros** | `#79536` *Greater Friend of the Library* | • **Sortija del investigador de campo** (`281634`): +7 Agilidad, +7 Aguante<br>• **Anillo de filántropo** (`281635`): +5 Intelecto, +10 Daño/Sanación |
+  | **Tier 3** | **25 Libros** | `#82208` *Greater Friend of the Library* | • **Arco del buscador de la verdad** (`277254`): +7 Agilidad, +3 Aguante<br>• **Blasón de elucidación** (`277258`): Escudo 1580 Armadura, +12 Espíritu, +7 Sanación<br>• **Luz nocturna del investigador** (`277260`): +12 Aguante, +7 Hechizos de Fuego |
 
 * **Lógica de Comportamiento Dinámico y Progresión:**
-  1. **Escaneo de Bolsas e Historial:** Se comprueban los libros en posesión (`PlayerHasItem`) y las misiones individuales completadas o activas (`IsQuestCompleted`/`IsQuestActive`), acumulando el conteo de libros únicos (`collectedCount`).
+  1. **Escaneo de Bolsas e Historial:** Comprueba libros en posesión (`PlayerHasItem`) y misiones completadas (`IsQuestCompleted`), acumulando `collectedCount`.
   2. **Determinación del Tier Activo:**
-     - Si `#82208` está completada: la guía se marca completada al 100% (`25/25 Libros`).
-     - Si `#79536` está completada: el objetivo es Tier 3 (25 libros). Si `collectedCount >= 25` o la quest `#82208` está activa, conmuta al bibliotecario; en caso contrario, guía al siguiente libro pendiente.
-     - Si `#78150` está completada: el objetivo es Tier 2 (20 libros). Si `collectedCount >= 20` o la quest `#79536` está activa, conmuta al bibliotecario; en caso contrario, guía al siguiente libro pendiente.
-     - Por defecto: objetivo Tier 1 (10 libros). Si `collectedCount >= 10` o la quest `#78150` está activa, conmuta al bibliotecario; en caso contrario, guía al siguiente libro pendiente.
-  3. **Filtrado por Facción:** El buscador automático de libros pendientes descarta tomos exclusivos de la facción rival (evitando dirigir a la Alianza a Orgrimmar o a la Horda a Forjaz).
-  4. **Paso de Entrega Dinámico:** Cuando el jugador alcanza la cuota del Tier (10, 20 o 25), el paso de entrega adapta su título e instrucción con el nombre exacto de la misión a entregar (`Friend of the Library` o `Greater Friend of the Library`), el PNJ correspondiente (`Garion Wendell` o `Owen Thadd`) y su localización.
+     - Si `#82208` está completada: marca 100% (`25/25 Libros`).
+     - Si `#79536` está completada: objetivo Tier 3 (25 libros). Si `collectedCount >= 25`, conmuta al bibliotecario.
+     - Si `#78150` está completada: objetivo Tier 2 (20 libros). Si `collectedCount >= 20`, conmuta al bibliotecario.
+     - Por defecto: objetivo Tier 1 (10 libros). Si `collectedCount >= 10`, conmuta al bibliotecario.
+  3. **Catálogo Maestro:** 40 ubicaciones canónicas en Azeroth filtradas por facción para evitar dirigir a jugadores a ciudades enemigas.
 
 ---
 
-## 6. Procedimiento para Agregar Nuevas Guías o Secretos
+### Caso 4: Sitio de Excavación: Los Humedales (`excavation_site`) — Guía de Mazmorra Wowhead
+* **Propósito:** Guía completa de la mazmorra de 5 jugadores (nivel 24-30) de World of Warcraft: Forever, ubicada en la excavación arqueológica al este de Los Humedales (`56.2, 40.6`).
+* **Categoría Cardinal (`category = "Guía"`, `subCategory = "Mazmorra"`):**
+  Activa la interfaz horizontal de alta fidelidad **`GuideViewer`** (`820 x 540` px) con las 4 pestañas de mazmorra (`DUNGEON_TAB_DEFS`):
+  1. **Resumen & Viaje:** Ficha técnica y panel dinámico en vivo con `TravelPlanner:CalculateRoute("__player__", entrance)`.
+  2. **Misiones de Mazmorra:** Las 6 misiones con PNJs dadores, coordenadas `/way`, prerrequisitos y tooltips nativos.
+  3. **Jefes & Tácticas:** Peligros de trash (emboscadas Pokémon) y los 3 jefes (*Saltspine*, *Shadetooth* y *Relic Guardian*).
+  4. **Tabla de Botín (Loot):** Grid de 10 objetos con marcos de calidad e inspección vía `GameTooltip:SetItemByID`.
 
-Para registrar un nuevo secreto o guía en el addon:
+---
 
-### Paso 1: Declarar los Pasos en `Data/SecretsData.lua`
+### Caso 5: Consejos para Principiantes (`beginners_guide`) — Odealo.com
+* **Propósito:** Guía estratégica indispensable para iniciar en WoW Forever. Explica los sistemas permanentes del motor, los cambios radicales de balance y previene errores costosos en la economía temprana.
+* **Modelo de Datos:** [Data/BeginnersGuideData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/BeginnersGuideData.lua) (`ns.Data.BeginnersGuide`).
+* **Pestañas en el Visor HD (`ARTICLE_TAB_DEFS`):**
+  1. **Diferencias Críticas:** Comparativa tabular interactiva entre WoW Classic y WoW Forever:
+     - *Leveleo & Rutas:* Más de 1,000 nuevas misiones y zonas rediseñadas.
+     - *Profesiones:* Más de 600 recetas nuevas; vital subirlas desde nivel 1 para campamentos y planos.
+     - *Fogones & Campamentos:* Bufos de 1 hora de descanso y estaciones de trabajo compartidas.
+     - *Mazmorras:* 80% de la experiencia proviene de misiones, no de grindear criaturas en bucle.
+     - *Estadísticas:* Unificación de Golpe y Crítico; necesidad crucial de Poder con Hechizos.
+  2. **La Primera Hora (Checklist de 6 Pasos):** Checklist con checkboxes interactivos y persistencia en `AwakeningDB.firstHourChecks[stepId]`:
+     - *Paso 1:* Configuración de interfaz, barras y asignación de teclas.
+     - *Paso 2:* Compra de primeras habilidades y balance de maná.
+     - *Paso 3:* Uso del Fogón Portátil (`Campfire`) para el bufo de descanso.
+     - *Paso 4:* Adquisición de profesiones primarias y secundarias.
+     - *Paso 5:* Obtención de bolsas económicas de 6 casillas.
+     - *Paso 6:* Vinculación de la Piedra de Hogar en la taberna local.
+  3. **Profesiones & Fogón:** Guía de parejas de profesiones recomendadas (Minería/Ingeniería, Desuello/Peletería, etc.) y la regla del nivel 10/habilidad 20.
+  4. **10 Errores Comunes:** Lista de los 10 hábitos obsoletos de Classic que arruinan la experiencia en Forever y cómo superarlos.
+
+---
+
+### Caso 6: Gestión de Oro y Bank Alt (`bank_alt_guide`) — LootWoW Launch Economy
+* **Propósito:** Guía de economía y administración de inventario diseñada para proteger el tiempo de juego del personaje principal durante el lanzamiento de WoW Forever.
+* **Modelo de Datos:** [Data/BankAltGuideData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/BankAltGuideData.lua) (`ns.Data.BankAltGuide`).
+* **Pestañas en el Visor HD (`BANK_ALT_TAB_DEFS`):**
+  1. **4 Pilares Fundamentales:**
+     - *Bolsas de Leveleo Limpias:* Cero casillas ocupadas por reactivos o menas en el personaje principal.
+     - *Subasta Centralizada:* Un único personaje gestiona ventas, ahorrando cancelaciones y traslados.
+     - *Control de Reserva de Oro:* El 80% de los ahorros se mantiene en el alter para garantizar el oro de la montura a nivel 40.
+     - *Cero Pérdida de Tiempo:* El correo entre personajes de la misma cuenta es instantáneo en WoW Forever.
+  2. **7 Reglas de Oro de Gestión:**
+     - Regla 1: Envío preventivo de materiales desde cualquier buzón rural.
+     - Regla 2: Ventas centralizadas en un solo personaje.
+     - Regla 3: Separación psicológica de la rese      | **Reserva de Oro** | Mantener Separado en Alter | Barrera psicológica contra compras impulsivas. |
+      | **Objetos de Bajo Valor / Basura** | Vender a PNJ Inmediatamente | Evita pagar costes de correo y saturar casillas. |
+      | **Materiales Especulativos** | Guardar Selectivamente | Espera a que maduren las profesiones del servidor. |
+
+   4. **Preguntas Frecuentes (FAQ):** Selección óptima de raza/ciudad (Tauren en Cima del Trueno como la mejor opción por proximidad banco-subasta-buzón), costes de casillas y correo entre cuentas.
+
+---
+
+### Caso 7: Guía de Puntos y Talentos Legacy (`legacy_talents_guide`) — Method.gg
+* **Propósito:** Guía estratégica basada en el análisis y plantillas de Method.gg para optimizar la progresión a nivel de cuenta (Account-wide). Explica cómo distribuir hasta 16 Puntos Legacy en los 3 árboles al lanzamiento.
+* **Modelo de Datos:** [Data/LegacyTalentsGuideData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/LegacyTalentsGuideData.lua) (`ns.Data.LegacyTalentsGuide`).
+* **Pestañas en el Visor HD (`LEGACY_TAB_DEFS`):**
+  1. **Fundamentos & 3 Árboles (`legacy_overview`):**
+     - *Progresión de Cuenta:* Los puntos se desbloquean a nivel de cuenta, pero cada personaje los gasta y especializa según su rol (leveled, recolector, crafter o raider).
+     - *Límite de 16 Puntos:* Al lanzamiento se dispone de hasta 16 puntos. Desbloquear un talento capstone exige 10 puntos en el árbol + 1 punto final (11 en total).
+     - *Reseteo en Instructor:* Reajuste disponible en cualquier instructor de clase en capitales por 10 de Oro.
+     - *Los 3 Árboles:* Aventura (leveleo/regeneración), Profesiones (recolección/crafteo) e Ingenio (reputación, coste de consumibles y durabilidad).
+  2. **El Gran Debate: Thrill vs Talented (`legacy_debate`):**
+     - *Thrill of Adventure:* 1% a 5% de regeneración de salud y maná durante 10s tras matar un objetivo no trivial en mundo abierto. Veredicto de Method: Opción #1 para leveleo fluido con cero paradas.
+     - *Talented:* Puntos de talento normales otorgados hasta 5 niveles antes (51 talentos a nivel 55). Veredicto de Method: Poder devastador en PvP de mundo abierto, pero requiere 10 puntos totales (5 en Well Rested) y a nivel 60 pierde su efecto, exigiendo un reseteo de 10g.
+  3. **Las 5 Builds del Meta Method (`legacy_builds`):**
+     - *Build 1: Speed Leveling (16 Aventura):* 5 Thrill of Adventure + 5 Well Rested + 5 Talented + 1 Field Medicine.
+     - *Build 2: Crafter / Artesano (11 Aventura / 5 Profesiones):* 5 Thrill of Adventure + 5 Working Overtime + Field Medicine / Frequent Flier.
+     - *Build 3: Gatherer Alt / Recolector (15 Profesiones / 1 Ingenio):* 5 Bountiful Harvest (+100% materiales escasos: Pristine Leather, Pyrite) + 5 Bartering + Dedicated Study (Esencia Elemental diaria al 300) + Master Chef / Luremaster.
+     - *Build 4: PvP Meta (11 Ingenio / 5 Aventura):* For Great Honor (+10% Honor) + Diplomat (+10% Reputación en BGs) + High Alert (Detección de Sigilo en exteriores) + Thrill / Talented.
+     - *Build 5: Raiding & Mazmorras (16 Ingenio):* Reinforce (reducción sustancial de facturas de reparación por wipes) + Diplomat (+Reputación de Raid) + The Quick and the Dead (mayor velocidad de carrera como espíritu) + Reagent Economy & Gourmand (duración extendida de comidas y bufos).
+  4. **Catálogo de Talentos Clave (`legacy_talents`):** Grid de dos columnas con costes, requisitos y efectos desglosados de los talentos más influyentes.
+
+---
+
+## 6. Arquitectura del Visor Interactivo HD (`GuideViewer.lua`)
+
+El módulo [Modules/GuideViewer.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/GuideViewer.lua) implementa una ventana flotante de alta resolución (`820 x 540` px) diseñada con la estética de **Chairfaces Casino**:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [Crest]  TÍTULO DE LA GUÍA                                       [X Cerrar]  │
+│          Subtítulo descriptivo y metadatos del artículo                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ [ Tab 1: Píldora ]   [ Tab 2: Píldora ]   [ Tab 3: Píldora ]   [ Tab 4: Píldora ] │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│                               ÁREA DE CONTENIDO                              │
+│             (ScrollFrame adaptativo con paneles temáticos en vivo)           │
+│                                                                              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ [ Iniciar Navegación HUD ]   [ Marcar en TomTom ]              [ Cerrar ]    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.1 Conmutación Dinámica de Conjuntos de Pestañas
+El método `GV:SetupTabsForGuide(guideKey)` analiza el `id` y los metadatos de la guía seleccionada para configurar al vuelo la botonera de 4 pestañas:
+
 ```lua
-ns.Data.MiNuevaGuiaSteps = {
-    [1] = {
-        stepNum = 1,
-        title = "1. Nombre del Hito",
-        instruction = "Instrucción clara de qué hacer.",
-        uiMapID = 1429,
-        zoneName = "Bosque de Elwynn",
-        x = 42.0, y = 65.0,
-        action = "Hablar con PNJ",
-        tip = "Consejo útil para el jugador.",
-        icon = "Interface\\Icons\\inv_misc_gear_01",
-    },
-}
+local isBankAlt = (guideKey == "bank_alt_guide")
+local isLegacy = (guideKey == "legacy_talents_guide")
+local isArticle = (guideKey == "beginners_guide") or (ns.Data.Secrets and ns.Data.Secrets[guideKey] and ns.Data.Secrets[guideKey].isArticle and not isBankAlt and not isLegacy)
+
+local defs = isBankAlt and BANK_ALT_TAB_DEFS or (isLegacy and LEGACY_TAB_DEFS or (isArticle and ARTICLE_TAB_DEFS or DUNGEON_TAB_DEFS))
 ```
 
-### Paso 2: Registrar en `ns.Data.Secrets`
-Añadir la entrada a la tabla maestra con sus restricciones de nivel, profesión y recompensas:
+* **`DUNGEON_TAB_DEFS`:** Resumen & Viaje, Misiones de Mazmorra, Jefes & Tácticas, Tabla de Botín.
+* **`ARTICLE_TAB_DEFS`:** Diferencias Classic, La Primera Hora, Profesiones & Fogón, 10 Errores a Evitar.
+* **`BANK_ALT_TAB_DEFS`:** Fundamentos & Pilares, Reglas de Gestión, Matriz de Inventario, Preguntas Frecuentes.
+* **`LEGACY_TAB_DEFS`:** Fundamentos & Árboles, Thrill vs Talented, 5 Builds Method, Talentos Clave.
+
+### 6.2 Persistencia de Checklists Interactivos
+En artículos interactivos (como el Checklist de Primera Hora), cada fila genera un `CheckButton` vinculado a la base de datos de usuario:
+
 ```lua
-ns.Data.Secrets["mi_nueva_guia"] = {
-    id = "mi_nueva_guia",
-    title = "Nombre Visible de la Guía",
-    category = "Secreto Clásico",
-    faction = "Ambas",
-    level = "Nivel 20 - 30",
-    minLevel = 20,
-    maxLevel = 30,
-    reward = "Recompensa principal",
-    rewardItems = {
-        { itemID = 12345, name = "Objeto Recompensa", quality = 2, icon = "Interface\\Icons\\inv_box_01", desc = "Descripción." }
-    },
-    icon = "Interface\\Icons\\inv_box_01",
-    steps = ns.Data.MiNuevaGuiaSteps,
-}
+local isChecked = (AwakeningDB.firstHourChecks and AwakeningDB.firstHourChecks[step.id]) or false
+chk:SetChecked(isChecked)
+chk:SetScript("OnClick", function(self)
+    AwakeningDB.firstHourChecks = AwakeningDB.firstHourChecks or {}
+    AwakeningDB.firstHourChecks[step.id] = self:GetChecked()
+end)
 ```
 
-### Paso 3: Definir la Función de Progreso en `ns.GetSecretProgress`
-En la función `ns.GetSecretProgress(secretKey)` de `Data/SecretsData.lua`, añadir la rama correspondiente:
-```lua
-elseif secretKey == "mi_nueva_guia" then
-    if PlayerHasItem(12345) or IsQuestCompleted(99999) then
-        return 1, true -- completado
-    end
-    return 1, false -- pendiente
-```
+### 6.3 Directrices de Tipografía y Compatibilidad de Caracteres en WoW Classic
+Las fuentes nativas del cliente de World of Warcraft (`FRIZQT__.TTF` y `ARIALN.TTF`) cubren exclusivamente caracteres ASCII y el suplemento latino estándar (acentos en español, diéresis, `ñ`, etc.).
 
-### Paso 4: Añadir la Clave a la Lista Ordenada en `Modules/MainUI.lua`
-Añadir `"mi_nueva_guia"` a la lista `secretsOrder` en `Modules/MainUI.lua` para establecer su posición visual en la tabla:
-```lua
-local secretsOrder = { "sleeping_bag", "expert_cooking", "mi_nueva_guia", ... }
-```
+> [!WARNING]
+> **Prohibido el uso de símbolos Unicode exóticos o emojis:**
+> Símbolos como estrellas (`★`, `☆`), emojis (`❓`, `⚔️`, `💰`) o flechas no estándar carecen de glifo en la tipografía de Blizzard y el motor los dibuja como un **rectángulo vertical hueco** (`.notdef` / tofu).
+> 
+> **Estándar Oficial para Adornos Visuales:**
+> 1. Para iconos decorativos en textos, usar secuencias de escape nativas de textura: `|TInterface\Icons\nombre_icono:16:16:0:0|t` o iconos de objetivo de banda `|TInterface\TargetingFrame\UI-RaidTargetingIcon_1:12:12|t`.
+> 2. Para viñetas y listas, usar exclusivamente el punto medio ASCII/Latino-1 estándar `•` (`\149` o `\183`) o guiones directos `-`.
+> 3. Mantener los títulos de lista de secretos limpios: `row.title:SetText(secret.title)`.
 
-### Paso 5: Validación Sintáctica y en Cliente
-Ejecutar en la terminal de WSL:
-```bash
-python3 tools/validate_lua.py Data/SecretsData.lua
-python3 tools/validate_lua.py Modules/MainUI.lua
-```
-Y luego ejecutar `/reload` en World of Warcraft para comprobar la visibilidad y funcionamiento de la nueva guía.
+---
+
+## 7. Procedimiento para Agregar Nuevas Guías o Secretos
+
+### Flujo A: Agregar un Secreto de Pasos Tradicional
+1. **Definir Pasos en [Data/SecretsData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/SecretsData.lua):** Declarar la tabla `ns.Data.MiNuevoSecretoSteps` con sus coordenadas y objetivos.
+2. **Registrar en `ns.Data.Secrets`:** Añadir la clave a `ns.Data.Secrets["mi_nuevo_secreto"]`.
+3. **Definir Progreso en `ns.GetSecretProgress`:** Especificar la condición de completado (`IsQuestCompleted` o `PlayerHasItem`).
+4. **Registrar Orden en [Modules/MainUI.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/MainUI.lua):** Añadir la clave al arreglo `secretsOrder`.
+
+### Flujo B: Agregar un Artículo Estratégico o Consejos
+1. **Crear Archivo de Datos en `Data/MiGuiaData.lua`:** Declarar la tabla estructurada (metadatos, capítulos, tablas o listas).
+2. **Registrar en [AwakeningCompanion.toc](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/AwakeningCompanion.toc):** Incluir la ruta del archivo de datos antes de `Data/SecretsData.lua`.
+3. **Registrar en `ns.Data.Secrets`:**
+   ```lua
+   ns.Data.Secrets["mi_nueva_guia"] = {
+       id = "mi_nueva_guia",
+       title = "Título del Artículo",
+       category = "Consejos",
+       isArticle = true,
+       articleDataKey = "MiGuiaData",
+       icon = "Interface\\Icons\\inv_misc_book_02",
+       ...
+   }
+   ```
+4. **Crear Paneles y Pestañas en [Modules/GuideViewer.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/GuideViewer.lua):** Definir el conjunto `MI_GUIA_TAB_DEFS` y sus constructores de panel.
+5. **Validar Sintaxis Lua:**
+   ```bash
+   python3 tools/validate_lua.py Data/MiGuiaData.lua
+   python3 tools/validate_lua.py Modules/GuideViewer.lua
+   ```
+6. **Empaquetar y Probar:** Ejecutar `tools/package_release.sh` y recargar el cliente con `/reload`.
+

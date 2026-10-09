@@ -1064,6 +1064,115 @@ ns.Data.ExpertCookingStepsHorde = {
     },
 }
 
+ns.Data.ExcavationSiteSteps = {
+    [1] = {
+        stepNum = 1,
+        title = "1. Misiones previas (Puerto de Menethil)",
+        instruction = "Habla con Caitlin Grassman en el Puerto de Menethil (11.8, 58.6) para aceptar 'Perdido entre la Espesura'. (Opcional para Alianza).",
+        uiMapID = 1437,
+        zoneName = "Los Humedales",
+        x = 11.8,
+        y = 58.6,
+        npcName = "Caitlin Grassman",
+        questID = 95647,
+        action = "Aceptar misión",
+        tip = "Enlace de viaje: Menethil cuenta con maestro de vuelo y muelles con barcos a Auberdine y Theramore.",
+        icon = "Interface\\Icons\\inv_misc_book_11",
+        isMilestone = true,
+        milestone = 1,
+    },
+    [2] = {
+        stepNum = 2,
+        title = "2. Hablar con Rethiel el Custodio Verde",
+        instruction = "Dirígete hacia el este de Los Humedales (56.2, 40.6) y acepta 'Horrores en las Tierras Altas' con Rethiel the Greenwarden.",
+        uiMapID = 1437,
+        zoneName = "Los Humedales",
+        x = 56.2,
+        y = 40.6,
+        npcName = "Rethiel the Greenwarden",
+        questID = 95646,
+        action = "Aceptar misión",
+        tip = "Ubicación: Justo a la entrada de la hondonada del cañón de excavación.",
+        icon = "Interface\\Icons\\spell_nature_healingtouch",
+        isMilestone = true,
+        milestone = 2,
+    },
+    [3] = {
+        stepNum = 3,
+        title = "3. Entrada al Sitio de Excavación",
+        instruction = "Cruza el portal de instancia de la mazmorra en la pared rocosa del cañón (56.2, 40.6).",
+        uiMapID = 1437,
+        zoneName = "Los Humedales",
+        x = 56.2,
+        y = 40.6,
+        action = "Entrar a la mazmorra",
+        tip = "Composición recomendada: 1 Tanque, 1 Sanador y 3 DPS. Nivel óptimo del grupo: 24 - 30.",
+        icon = "Interface\\Icons\\inv_misc_key_02",
+        isMilestone = true,
+        milestone = 3,
+    },
+    [4] = {
+        stepNum = 4,
+        title = "4. Jefe 1: Espina de Sal (Saltspine)",
+        instruction = "Avanza por el cauce de agua despejando los cocodrilos. Derrota a Saltspine manteniéndose los casters a >10 yardas de Dust Storm.",
+        uiMapID = 1437,
+        zoneName = "Sitio de Excavación",
+        x = 56.2,
+        y = 40.6,
+        npcName = "Saltspine",
+        action = "Derrotar jefe",
+        tip = "Mecánica clave: El tanque sufrirá Tendon Rip. Disipar el ralentizamiento y evitar acumular venenos.",
+        icon = "Interface\\Icons\\ability_hunter_pet_crocolisk",
+        isMilestone = true,
+        milestone = 4,
+    },
+    [5] = {
+        stepNum = 5,
+        title = "5. Jefe 2: Dientessombra (Shadetooth)",
+        instruction = "Cruza la arboleda sin pisar la hierba alta. Aplica control de masas (CC) a los 2 Thicket Hunters y atrae al jefe hacia terreno limpio.",
+        uiMapID = 1437,
+        zoneName = "Sitio de Excavación",
+        x = 56.2,
+        y = 40.6,
+        npcName = "Shadetooth",
+        action = "Derrotar jefe y esbirros",
+        tip = "¡Peligro!: Terrifying Roar causa 5s de miedo que puede lanzarte a la hierba con raptores emboscadores. Aturdir al 30% en Enrage.",
+        icon = "Interface\\Icons\\ability_hunter_pet_raptor",
+        isMilestone = true,
+        milestone = 5,
+    },
+    [6] = {
+        stepNum = 6,
+        title = "6. Jefe 3: Guardián de la Reliquia (Relic Guardian)",
+        instruction = "Pulsa el Panel de Archivo a la derecha para activar al Guardián de la Reliquia. El tanque debe colocarse de espaldas a los pilares.",
+        uiMapID = 1437,
+        zoneName = "Sitio de Excavación",
+        x = 56.2,
+        y = 40.6,
+        npcName = "Relic Guardian",
+        action = "Activar consola y derrotar",
+        tip = "Mecánica clave: Cuando el tanque sea aturdido por 5s, ralentizar al jefe y kitear para evitar que golpee a la banda.",
+        icon = "Interface\\Icons\\inv_misc_head_clockworkgnome_01",
+        isMilestone = true,
+        milestone = 6,
+    },
+    [7] = {
+        stepNum = 7,
+        title = "7. Despojar 'Reliquia de los Titanes' y Salir",
+        instruction = "Despoja la Reliquia de los Titanes (ID #270865) del núcleo del gólem derrotado y entrega las misiones con Rethiel y Caitlin.",
+        uiMapID = 1437,
+        zoneName = "Sitio de Excavación",
+        x = 56.2,
+        y = 40.6,
+        itemID = 270865,
+        action = "Despojar reliquia y entregar",
+        tip = "Recompensa: Completa la cadena 'Lost Relic Carry' y desbloquea 'Prehistoric Prism'.",
+        icon = "Interface\\Icons\\inv_misc_archaeology_titan_fragment",
+        isMilestone = true,
+        milestone = 7,
+    },
+}
+
 -- -------------------------------------------------------------------------
 -- BASE DE DATOS MAESTRA DE SECRETOS
 -- -------------------------------------------------------------------------
@@ -1302,7 +1411,303 @@ ns.Data.Secrets = {
                 icon = "Interface\\Icons\\inv_misc_key_05"
             }
         }
-    }
+    },
+    ["excavation_site"] = {
+        id = "excavation_site",
+        title = "Sitio de Excavación: Los Humedales",
+        titleEn = "Excavation Site: Wetlands",
+        category = "Guía",
+        subCategory = "Mazmorra",
+        dungeonType = "Mazmorra (5 jugadores)",
+        faction = "Ambas",
+        level = "Nivel 24 - 30",
+        minLevel = 22,
+        maxLevel = 36,
+        zone = "Los Humedales",
+        uiMapID = 1437,
+        entrance = {
+            uiMapID = 1437,
+            x = 56.2,
+            y = 40.6,
+            name = "Portal del Sitio de Excavación",
+            zoneName = "Los Humedales",
+        },
+        overview = "El Sitio de Excavación en Los Humedales es una mazmorra para 5 jugadores (nivel 24-30) de World of Warcraft: Forever. Ubicada en la excavación arqueológica enana al este de Los Humedales, contiene reliquias titánicas, peligrosos raptores acechando en la hierba alta y temibles jefes mecánicos y bestias.",
+        travelNotes = {
+            alliance = "Volar a Puerto de Menethil o Forjaz. Desde Menethil o Loch Modan avanzar hacia el este de Los Humedales hasta Bael Modan (56.2, 40.6).",
+            horde = "Tomar zepelín a Entrañas o Grom'gol, volar a Refugio de la Sentencia (Hammerfall en Arathi) y cruzar el Viaducto Thandol hacia el sur hasta Los Humedales.",
+        },
+        quests = {
+            {
+                questID = 95646,
+                name = "Horrores en las Tierras Altas",
+                nameEn = "Horrors in the Highland",
+                minLevel = 24,
+                npcName = "Rethiel the Greenwarden",
+                zone = "Los Humedales",
+                x = 56.2,
+                y = 40.6,
+                faction = "Ambas",
+                desc = "Investigar las perturbaciones y derrotar a las bestias primigenias.",
+                type = "Mazmorra"
+            },
+            {
+                questID = 95647,
+                name = "Perdido entre la Espesura",
+                nameEn = "Lost in the Thicket Things",
+                minLevel = 24,
+                npcName = "Caitlin Grassman",
+                zone = "Puerto de Menethil",
+                x = 11.8,
+                y = 58.6,
+                faction = "Alianza",
+                desc = "Rescatar notas perdidas en la vegetación de la excavación. Se puede recoger en Menethil o mediante la misión 'Seeking Caitlin' en Vallefresno (Llana, 35.0, 48.6).",
+                type = "Principal"
+            },
+            {
+                questID = 95809,
+                name = "Tejido del Corazón",
+                nameEn = "Heartwoven",
+                minLevel = 24,
+                preQuestID = 95647,
+                npcName = "Caitlin Grassman",
+                zone = "Puerto de Menethil",
+                desc = "Seguimiento inmediato de 'Perdido entre la Espesura'.",
+                type = "Cadena"
+            },
+            {
+                questID = 95810,
+                name = "Porte de la Reliquia Perdida",
+                nameEn = "Lost Relic Carry",
+                minLevel = 24,
+                preQuestID = 95809,
+                itemID = 270865,
+                npcName = "Relic Guardian",
+                zone = "Sitio de Excavación",
+                desc = "Despojar la Reliquia de los Titanes (Titan Relic) del último jefe.",
+                type = "Objetivo Jefe"
+            },
+            {
+                questID = 98824,
+                name = "Prisma Prehistórico",
+                nameEn = "Prehistoric Prism",
+                minLevel = 24,
+                preQuestID = 95810,
+                npcName = "Caitlin Grassman",
+                zone = "Puerto de Menethil",
+                desc = "Entrega final de la reliquia titánica para forjar un prisma antiguo.",
+                type = "Recompensa Final"
+            },
+            {
+                questID = 95650,
+                name = "Rumores Faucedraco / Abrir las Fauces",
+                nameEn = "Dragonmaw Rumors / Open the Maw",
+                minLevel = 24,
+                npcName = "Sentencia / Hammerfall",
+                zone = "Tierras Altas de Arathi",
+                faction = "Horda",
+                desc = "Misión de la Horda que se inicia en Hammerfall (Tierras Altas de Arathi) para investigar la excavación.",
+                type = "Horda"
+            },
+        },
+        trashNotes = "Hierba Alta (Mecánica Pokémon): Caminar en la hierba alta hace aparecer Acechadores de la Espesura (Thicket Lurkers) por tiempo de permanencia. Además, las Matriarcas de la Espesura (Thicket Matriarchs) a baja salud lanzan un chillido que llama a todos los acechadores cercanos. Estrategia: Mantenerse estrictamente en el sendero de tierra y luchar en zonas despejadas.",
+        bosses = {
+            {
+                name = "Espina de Sal (Saltspine)",
+                nameEn = "Saltspine",
+                level = 26,
+                icon = "Interface\\Icons\\ability_hunter_pet_crocolisk",
+                abilities = {
+                    { name = "Desgarro de tendón (Tendon Rip)", desc = "Aplica una fuerte ralentización de movimiento al tanque." },
+                    { name = "Tormenta de polvo (Dust Storm)", desc = "Aura en 10 yardas que reduce la probabilidad de acierto de los ataques en un 25%." },
+                },
+                strategy = "Despejar cuidadosamente todos los esbirros alrededor del agua antes de iniciar. Los lanzadores de hechizos y sanadores deben mantenerse a más de 10 yardas del jefe para no sufrir la reducción de acierto de Tormenta de polvo.",
+            },
+            {
+                name = "Dientessombra (Shadetooth)",
+                nameEn = "Shadetooth",
+                level = 27,
+                icon = "Interface\\Icons\\ability_hunter_pet_raptor",
+                abilities = {
+                    { name = "Herida infectada (Infected Wound)", desc = "Veneno de los 2 Cazadores esbirros que reduce estadísticas y debe disiparse." },
+                    { name = "Desgarrar (Rend)", desc = "Sangrado físico constante sobre el tanque." },
+                    { name = "Rugido aterrador (Terrifying Roar)", desc = "Miedo en área de 5 segundos que NO se puede disipar." },
+                    { name = "Enfurecer (Enrage)", desc = "Aumenta drásticamente la velocidad de ataque y daño al llegar al 30% de vida." },
+                },
+                strategy = "¡Encuentro muy traicionero! Pullear al jefe hacia la cala de cocodrilos a la izquierda para evitar que el miedo lance a los jugadores hacia la hierba alta. Mantener a los 2 Cazadores bajo control de masas (CC) o eliminarlos rápido. Reservar aturdimientos y ralentizaciones para el 30% en Enfurecer.",
+            },
+            {
+                name = "Guardián de la Reliquia (Relic Guardian)",
+                nameEn = "Relic Guardian",
+                level = 28,
+                icon = "Interface\\Icons\\inv_misc_head_clockworkgnome_01",
+                abilities = {
+                    { name = "Atronador (Thunderclap)", desc = "Daño moderado en 10 yardas que ralentiza el movimiento y la velocidad de ataque." },
+                    { name = "Embate y Choque", desc = "Empuja hacia atrás al objetivo actual." },
+                    { name = "Aturdimiento Titánico", desc = "Aturde al tanque durante 5 segundos de forma periódica." },
+                },
+                strategy = "Se activa pulsando el Panel de Archivo a la derecha del gólem inactivo. El tanque debe colocarse de espaldas a una pared o pilar para no salir despedido. Cuando el tanque sea aturdido por 5s, el grupo debe ralentizar al gólem y kitear alrededor de la sala.",
+            },
+        },
+        loot = {
+            { itemID = 273024, name = "Glinteye Slippers", slot = "Pies", type = "Tela", quality = 3, boss = "Saltspine", icon = "Interface\\Icons\\inv_boots_05" },
+            { itemID = 273023, name = "Saltscale Girdle", slot = "Cintura", type = "Malla", quality = 3, boss = "Saltspine", icon = "Interface\\Icons\\inv_belt_12" },
+            { itemID = 273022, name = "Supple Bellyskin Leggings", slot = "Piernas", type = "Cuero", quality = 3, boss = "Saltspine", icon = "Interface\\Icons\\inv_pants_02" },
+            { itemID = 273025, name = "Raptorclaw Greaves", slot = "Pies", type = "Malla", quality = 3, boss = "Shadetooth", icon = "Interface\\Icons\\inv_boots_plate_03" },
+            { itemID = 273027, name = "Raptor's Gaze", slot = "Mano izquierda", type = "Sostener", quality = 3, boss = "Shadetooth", icon = "Interface\\Icons\\inv_misc_eye_01" },
+            { itemID = 273026, name = "Garb of Florid Feathers", slot = "Pecho", type = "Cuero", quality = 3, boss = "Shadetooth", icon = "Interface\\Icons\\inv_chest_leather_08" },
+            { itemID = 270865, name = "Titan Relic", slot = "Misión", type = "Misión", quality = 2, boss = "Relic Guardian", icon = "Interface\\Icons\\inv_misc_archaeology_titan_fragment" },
+            { itemID = 273030, name = "Ring of Power Regulation", slot = "Dedo", type = "Anillo", quality = 3, boss = "Relic Guardian", icon = "Interface\\Icons\\inv_jewelry_ring_16" },
+            { itemID = 273029, name = "Golemsight Long Gun", slot = "A distancia", type = "Arma de fuego", quality = 3, boss = "Relic Guardian", icon = "Interface\\Icons\\inv_weapon_rifle_01" },
+            { itemID = 273028, name = "Reliquary Mantle", slot = "Hombro", type = "Malla", quality = 3, boss = "Relic Guardian", icon = "Interface\\Icons\\inv_shoulder_01" },
+        },
+        reward = "Equipo de mazmorra (Nv 24-30), Reliquia de los Titanes y armas excepcionales.",
+        rewardItems = {
+            { itemID = 273029, name = "Golemsight Long Gun", quality = 3, icon = "Interface\\Icons\\inv_weapon_rifle_01", desc = "Arma de fuego superior de los Titanes." },
+            { itemID = 273030, name = "Ring of Power Regulation", quality = 3, icon = "Interface\\Icons\\inv_jewelry_ring_16", desc = "Sortija de gran poder titánico." },
+            { itemID = 273026, name = "Garb of Florid Feathers", quality = 3, icon = "Interface\\Icons\\inv_chest_leather_08", desc = "Pechera de cuero con agilidad, aguante e intelecto." },
+        },
+        icon = "Interface\\Icons\\inv_misc_key_02",
+        steps = ns.Data.ExcavationSiteSteps,
+    },
+    ["beginners_guide"] = {
+        id = "beginners_guide",
+        title = "Consejos para Principiantes",
+        titleEn = "Beginner's Guide & Essential Tips",
+        category = "Consejos",
+        subCategory = "Guía Estratégica",
+        faction = "Ambas",
+        level = "Nivel 1 - 60",
+        minLevel = 1,
+        maxLevel = 60,
+        badge = "GUÍA FOREVER",
+        icon = "Interface\\Icons\\inv_misc_book_07",
+        overview = "Aprende qué hábitos de Classic aún funcionan, qué ha cambiado radicalmente (profesiones desde nivel 1, campamentos, mazmorras tácticas) y cómo progresar eficientemente en WoW Forever.",
+        reward = "7 Capítulos interactivos con diferencias de Classic, profesiones y 10 errores a evitar.",
+        isArticle = true,
+        steps = {
+            [1] = {
+                stepNum = 1,
+                title = "1. Diferencias Críticas",
+                instruction = "Revisa las diferencias clave de WoW Forever: más de 1,000 quests nuevas, reducción de mob XP en mazmorras y 600+ recetas.",
+                icon = "Interface\\Icons\\inv_misc_book_09",
+                tip = "La XP de mazmorras viene de las misiones completas, no del grindeo de monstruos."
+            },
+            [2] = {
+                stepNum = 2,
+                title = "2. La Primera Hora",
+                instruction = "Aprende tus profesiones inmediatamente, sube cocina para el fogón básico y sintoniza todas las rutas de vuelo.",
+                icon = "Interface\\Icons\\trade_engineering",
+                tip = "Alcanzar 20 de habilidad en tu profesión desbloquea tu primer objeto de acampada."
+            },
+            [3] = {
+                stepNum = 3,
+                title = "3. La Regla de Oro del Fogón",
+                instruction = "Siéntate cerca del fogón (/sit) durante 1 minuto para recibir 1 hora completa de bufos de combate.",
+                icon = "Interface\\Icons\\spell_fire_fire",
+                tip = "Aprovecha campamentos de otros jugadores para suplir clases faltantes en tu grupo."
+            },
+            [4] = {
+                stepNum = 4,
+                title = "4. Errores Comunes a Evitar",
+                instruction = "Revisa la matriz de los 10 errores típicos de principiantes y veteranos para no perder tiempo ni oro.",
+                icon = "Interface\\Icons\\ability_warrior_battleshout",
+                tip = "Pulsa 'Ver en Modo HD' para leer la guía interactiva completa con tablas y checklists."
+            }
+        }
+    },
+    ["bank_alt_guide"] = {
+        id = "bank_alt_guide",
+        title = "Gestión de Oro y Bank Alt",
+        titleEn = "Bank Alt & Gold Management Guide",
+        category = "Consejos",
+        subCategory = "Economía & Inventario",
+        faction = "Ambas",
+        level = "Nivel 1 - 60",
+        minLevel = 1,
+        maxLevel = 60,
+        badge = "ECONOMÍA",
+        icon = "Interface\\Icons\\inv_misc_coin_01",
+        overview = "Domina la gestión de inventario y subasta durante el lanzamiento de WoW Forever. Aprende cómo un alter de banco protege tu tiempo de leveleo, ahorra oro para la montura de nivel 40 y centraliza tus ventas.",
+        reward = "4 Secciones: Fundamentos y 4 Pilares, Reglas de Oro, Matriz de Clasificación y Preguntas Frecuentes.",
+        isArticle = true,
+        steps = {
+            [1] = {
+                stepNum = 1,
+                title = "1. Fundamentos & 4 Pilares",
+                instruction = "Conoce las ventajas de un Bank Alt: bolsas de leveleo limpias, subasta centralizada, control de la reserva de oro y cero tiempo perdido.",
+                icon = "Interface\\Icons\\inv_misc_bag_08",
+                tip = "El correo entre personajes de tu cuenta es instantáneo en WoW Forever."
+            },
+            [2] = {
+                stepNum = 2,
+                title = "2. Reglas de Oro de Gestión",
+                instruction = "Aplica las 7 reglas clave: envío preventivo, evitar el desorden, proteger BoEs valiosos y revisar en horarios fijos.",
+                icon = "Interface\\Icons\\inv_scroll_03",
+                tip = "Separa tu reserva de oro para asegurar la montura a nivel 40 sin tentaciones."
+            },
+            [3] = {
+                stepNum = 3,
+                title = "3. Matriz de Inventario",
+                instruction = "Consulta la matriz de 5 tipos de objetos para saber qué almacenar, qué vender a PNJ y qué guardar para especular.",
+                icon = "Interface\\Icons\\inv_misc_coin_02",
+                tip = "Comprueba el valor de subasta de los BoEs antes de equiparlos por error."
+            },
+            [4] = {
+                stepNum = 4,
+                title = "4. Preguntas Frecuentes (FAQ)",
+                instruction = "Resuelve dudas sobre las mejores razas y ciudades, compra de casillas de banco y optimización de espacio.",
+                icon = "Interface\\Icons\\inv_misc_questionmark",
+                tip = "Tauren en Cima del Trueno tiene banco, buzón y subasta a 5 metros y al aire libre."
+            }
+        }
+    },
+    ["legacy_talents_guide"] = {
+        id = "legacy_talents_guide",
+        title = "Guía de Talentos Legacy",
+        titleEn = "Legacy Points & Talent Builds Guide",
+        category = "Consejos",
+        subCategory = "Talentos & Progresión",
+        faction = "Ambas",
+        level = "Nivel 1 - 60",
+        minLevel = 1,
+        maxLevel = 60,
+        badge = "METHOD META",
+        icon = "Interface\\Icons\\inv_misc_book_09",
+        overview = "Aprende cómo invertir tus Puntos Legacy a nivel de cuenta (Account-wide). Conoce la comparativa entre Thrill of Adventure y Talented, y las 5 builds óptimas diseñadas por Method para Leveleo, Crafteo, Gatherer Alt, PvP y Raiding.",
+        reward = "4 Secciones: Fundamentos y 3 Árboles, Debate Thrill vs Talented, 5 Builds del Meta Method y Catálogo de Talentos Clave.",
+        isArticle = true,
+        steps = {
+            [1] = {
+                stepNum = 1,
+                title = "1. Fundamentos & 3 Árboles",
+                instruction = "Comprende la progresión de cuenta, el límite de 16 puntos, la regla de 10g para reseteos y las especializaciones de Aventura, Profesiones e Ingenio.",
+                icon = "Interface\\Icons\\inv_misc_book_09",
+                tip = "Solo puedes desbloquear 1 talento Capstone por personaje al inicio."
+            },
+            [2] = {
+                stepNum = 2,
+                title = "2. Debate: Thrill vs Talented",
+                instruction = "Compara las dos opciones líderes de leveleo: regeneración constante tras cada kill (Thrill) vs 5 talentos adelantados (Talented).",
+                icon = "Interface\\Icons\\spell_nature_timestop",
+                tip = "Method recomienda invertir tus primeros 5 puntos en Thrill of Adventure."
+            },
+            [3] = {
+                stepNum = 3,
+                title = "3. Las 5 Builds del Meta Method",
+                instruction = "Selecciona la plantilla idónea según tu meta: Speed Leveling, Crafter, Gatherer Alt (+100% materiales raros), PvP o Raiding.",
+                icon = "Interface\\Icons\\inv_sword_04",
+                tip = "Un Gatherer Alt con Bountiful Harvest y Dedicated Study es una mina de oro."
+            },
+            [4] = {
+                stepNum = 4,
+                title = "4. Catálogo de Talentos Clave",
+                instruction = "Consulta los costes y efectos detallados de Reinforce, The Quick and the Dead, Diplomat, Dedicated Study y más.",
+                icon = "Interface\\Icons\\inv_misc_coin_01",
+                tip = "The Quick and the Dead te ahorra minutos valiosos corriendo al boss tras wipes."
+            }
+        }
+    },
 }
 
 -- -------------------------------------------------------------------------
@@ -1526,6 +1931,18 @@ function ns.GetSecretProgress(secretKey)
         if PlayerHasItem(9276) then
             return 2, true
         end
+        return 1, false
+
+    elseif secretKey == "excavation_site" then
+        if IsQuestCompleted(98824) or IsQuestCompleted(95810) then
+            return 7, true
+        elseif PlayerHasItem(270865) then
+            return 7, false
+        elseif IsQuestCompleted(95646) then
+            return 4, false
+        end
+        return 1, false
+    elseif secretKey == "beginners_guide" or secretKey == "bank_alt_guide" or secretKey == "legacy_talents_guide" then
         return 1, false
     end
 

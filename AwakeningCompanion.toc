@@ -13,6 +13,9 @@ Core/ItemValidator.lua
 Core/Comms.lua
 
 # Data
+Data/BeginnersGuideData.lua
+Data/BankAltGuideData.lua
+Data/LegacyTalentsGuideData.lua
 Data/SecretsData.lua
 Data/BiSData.lua
 Data/StatWeightsData.lua
@@ -27,5 +30,6 @@ Modules/TravelPlanner.lua
 Modules/RaidPrep.lua
 Modules/GuildRoster.lua
 Modules/SkillsUI.lua
+Modules/GuideViewer.lua
 Modules/MainUI.lua
 Modules/MinimapButton.lua

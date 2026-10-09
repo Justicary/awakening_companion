@@ -62,7 +62,13 @@ end
 -- ACCIONES DE ALTO NIVEL
 -- =========================================================================
 function Comms:BroadcastPrepStatus(readyCount, totalCount)
-    local payload = string.format("%d/%d", readyCount, totalCount)
+    local _, pClass = UnitClass("player")
+    local payload = string.format("%d/%d:%s", readyCount, totalCount, pClass or "WARRIOR")
+    if IsInRaid() and C_ChatInfo and C_ChatInfo.SendAddonMessage then
+        C_ChatInfo.SendAddonMessage(COMM_PREFIX, "PREP_STATUS:" .. payload, "RAID")
+    elseif IsInGroup() and C_ChatInfo and C_ChatInfo.SendAddonMessage then
+        C_ChatInfo.SendAddonMessage(COMM_PREFIX, "PREP_STATUS:" .. payload, "PARTY")
+    end
     return self:SendGuild("PREP_STATUS", payload)
 end
 

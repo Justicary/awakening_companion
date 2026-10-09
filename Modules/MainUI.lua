@@ -511,7 +511,12 @@ function MainUI:Init()
     bottomButtons[2] = btn2
 
     local btn3 = CreateBlizzButton(f, "Habilidades", function()
-        if ns.SkillsUI then
+        local curKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key
+        if curKey == "prep" and ns.RaidPrep and ns.RaidPrep.ToggleHD then
+            ns.RaidPrep:ToggleHD()
+        elseif curKey == "travel" and ns.GuideHUD then
+            ns.GuideHUD:Toggle()
+        elseif ns.SkillsUI then
             ns.SkillsUI:Toggle()
         elseif ns.GuideHUD then
             ns.GuideHUD:Toggle()
@@ -2036,14 +2041,149 @@ function MainUI:SetBiSWaypoint()
 end
 
 -- =========================================================================
--- VISTA 1: SECRETOS (LISTA TIPO TABLA CON HOVER Y DETALLES)
+-- VISTA 1: SECRETOS & GUÍAS (SUB-PESTAÑAS PILL, CHIPS, TABLA Y DETALLES HD)
 -- =========================================================================
 local secretRowFrames = {}
-local secretsOrder = { "sleeping_bag", "expert_cooking", "library_books", "ancient_rune", "sunken_chest", "tanaris_pirates", "shadowforge_key" }
+local secretsOrder = {
+    "sleeping_bag",
+    "expert_cooking",
+    "library_books",
+    "ancient_rune",
+    "sunken_chest",
+    "tanaris_pirates",
+    "shadowforge_key",
+    "excavation_site",
+    "beginners_guide",
+    "bank_alt_guide",
+    "legacy_talents_guide",
+}
+
+local currentSecretsSubTab = "secrets"
+local currentSecretsFilter = "all"
+
+local SECRETS_SUBTABS = {
+    { id = "secrets",  text = "Secretos & Rutas", icon = "Interface\\Icons\\inv_misc_bag_07" },
+    { id = "dungeons", text = "Mazmorras 5-Jug",  icon = "Interface\\Icons\\inv_helmet_08" },
+    { id = "tips",     text = "Consejos Forever", icon = "Interface\\Icons\\spell_holy_magicalsentry" },
+}
+
+local SECRETS_FILTERS = {
+    { id = "all",       text = "Todos" },
+    { id = "level",     text = "Mi Nivel" },
+    { id = "pending",   text = "Por Descubrir" },
+    { id = "completed", text = "Completados" },
+}
 
 function MainUI:BuildSecretsList(parent)
+    -- 0. SubBar con 3 Pestañas Horizontales Estilo Píldora (GuideViewer & RaidPrep Style)
+    local subBar = CreateFrame("Frame", nil, parent)
+    subBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
+    subBar:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -2)
+    subBar:SetHeight(22)
+    parent.subBar = subBar
+
+    parent.subTabs = {}
+    local tabW = 162
+    for idx, def in ipairs(SECRETS_SUBTABS) do
+        local btn = CreateFrame("Button", nil, subBar, "BackdropTemplate")
+        btn:SetSize(tabW, 20)
+        btn:SetPoint("LEFT", subBar, "LEFT", (idx - 1) * (tabW + 4), 0)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(0.04, 0.04, 0.06, 0.85)
+        btn:SetBackdropBorderColor(0.25, 0.22, 0.15, 0.8)
+        btn.tabId = def.id
+
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(14, 14)
+        icon:SetPoint("LEFT", 6, 0)
+        icon:SetTexture(def.icon)
+        btn.icon = icon
+
+        local text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        text:SetPoint("LEFT", icon, "RIGHT", 5, 0)
+        text:SetPoint("RIGHT", -4, 0)
+        text:SetJustifyH("LEFT")
+        text:SetText(def.text)
+        btn.text = text
+
+        btn:SetScript("OnClick", function()
+            currentSecretsSubTab = def.id
+            MainUI:UpdateSecretsSubTabs()
+            MainUI:UpdateSecretsView()
+        end)
+
+        btn:SetScript("OnEnter", function(selfBtn)
+            if currentSecretsSubTab ~= selfBtn.tabId then
+                selfBtn:SetBackdropColor(0.12, 0.10, 0.05, 0.9)
+                selfBtn:SetBackdropBorderColor(0.7, 0.55, 0.2, 1)
+            end
+        end)
+        btn:SetScript("OnLeave", function(selfBtn)
+            if currentSecretsSubTab ~= selfBtn.tabId then
+                selfBtn:SetBackdropColor(0.04, 0.04, 0.06, 0.85)
+                selfBtn:SetBackdropBorderColor(0.25, 0.22, 0.15, 0.8)
+            end
+        end)
+
+        parent.subTabs[def.id] = btn
+    end
+
+    -- 0.1 Barra de Filtros Rápidos (Chips)
+    local filterBar = CreateFrame("Frame", nil, parent)
+    filterBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -26)
+    filterBar:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -26)
+    filterBar:SetHeight(18)
+    parent.filterBar = filterBar
+
+    parent.filterChips = {}
+    local chipW = 120
+    for idx, fDef in ipairs(SECRETS_FILTERS) do
+        local chip = CreateFrame("Button", nil, filterBar, "BackdropTemplate")
+        chip:SetSize(chipW, 18)
+        chip:SetPoint("LEFT", filterBar, "LEFT", (idx - 1) * (chipW + 6), 0)
+        chip:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        chip:SetBackdropColor(0.04, 0.04, 0.06, 0.85)
+        chip:SetBackdropBorderColor(0.2, 0.18, 0.14, 0.7)
+        chip.filterId = fDef.id
+
+        local chipText = chip:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        chipText:SetPoint("CENTER")
+        chipText:SetText(fDef.text)
+        chip.text = chipText
+
+        chip:SetScript("OnClick", function()
+            currentSecretsFilter = fDef.id
+            MainUI:UpdateSecretsFilters()
+            MainUI:UpdateSecretsView()
+        end)
+
+        chip:SetScript("OnEnter", function(selfChip)
+            if currentSecretsFilter ~= selfChip.filterId then
+                selfChip:SetBackdropColor(0.12, 0.10, 0.05, 0.9)
+                selfChip:SetBackdropBorderColor(0.7, 0.55, 0.2, 1)
+            end
+        end)
+        chip:SetScript("OnLeave", function(selfChip)
+            if currentSecretsFilter ~= selfChip.filterId then
+                selfChip:SetBackdropColor(0.04, 0.04, 0.06, 0.85)
+                selfChip:SetBackdropBorderColor(0.2, 0.18, 0.14, 0.7)
+            end
+        end)
+
+        parent.filterChips[fDef.id] = chip
+    end
+
+    -- ScrollFrame anclado debajo de los controles superiores
     local scroll = CreateFrame("ScrollFrame", "AwakeningSecretsScroll", parent, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
+    scroll:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -48)
     scroll:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -20, 24)
 
     local content = CreateFrame("Frame", nil, scroll)
@@ -2052,9 +2192,9 @@ function MainUI:BuildSecretsList(parent)
     parent.content = content
     parent.scroll = scroll
 
-    -- Mensaje de estado vacío cuando no hay secretos para el nivel del jugador
+    -- Mensaje de estado vacío cuando no hay secretos para el filtro activo
     local emptyLabel = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    emptyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -40)
+    emptyLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -30)
     emptyLabel:SetPoint("RIGHT", content, "RIGHT", -10, 0)
     emptyLabel:SetJustifyH("CENTER")
     emptyLabel:SetWordWrap(true)
@@ -2062,7 +2202,7 @@ function MainUI:BuildSecretsList(parent)
     emptyLabel:Hide()
     parent.emptyLabel = emptyLabel
 
-    -- Precargar objetos en la caché de WoW para que los tooltips muestren enlaces y estadísticas de inmediato
+    -- Precargar objetos en la caché de WoW para que los tooltips muestren enlaces de inmediato
     for _, key in ipairs(secretsOrder) do
         local secret = ns.Data.Secrets and ns.Data.Secrets[key]
         if secret and secret.rewardItems then
@@ -2074,7 +2214,7 @@ function MainUI:BuildSecretsList(parent)
         end
     end
 
-    -- Crear los marcos de fila para los secretos
+    -- Crear los marcos de fila para los secretos y guías
     for _, key in ipairs(secretsOrder) do
         local secret = (ns.GetSecret and ns.GetSecret(key)) or (ns.Data.Secrets and ns.Data.Secrets[key])
         if secret then
@@ -2100,7 +2240,7 @@ function MainUI:BuildSecretsList(parent)
             local icon = row:CreateTexture(nil, "ARTWORK")
             icon:SetSize(16, 16)
             icon:SetPoint("LEFT", row, "LEFT", 2, 0)
-            icon:SetTexture(secret.icon or (secret.steps[1] and secret.steps[1].icon) or "Interface\\Icons\\inv_misc_bag_07")
+            icon:SetTexture(secret.icon or (secret.steps and secret.steps[1] and secret.steps[1].icon) or "Interface\\Icons\\inv_misc_bag_07")
             row.icon = icon
 
             local title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -2117,7 +2257,7 @@ function MainUI:BuildSecretsList(parent)
             zone:SetPoint("RIGHT", row, "LEFT", 430, 0)
             zone:SetJustifyH("LEFT")
             zone:SetWordWrap(false)
-            zone:SetText(secret.steps[1] and secret.steps[1].zoneName or "Varias")
+            zone:SetText(secret.steps and secret.steps[1] and secret.steps[1].zoneName or "Varias")
             row.zone = zone
 
             -- Columna 3: Hitos / Progreso
@@ -2126,12 +2266,12 @@ function MainUI:BuildSecretsList(parent)
             steps:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             steps:SetJustifyH("RIGHT")
             steps:SetWordWrap(false)
-            steps:SetText(string.format("%d", #secret.steps))
+            steps:SetText(secret.steps and tostring(#secret.steps) or "-")
             row.steps = steps
 
             row.key = key
 
-            -- Tooltip de recompensas con la misma metodología nativa y metadatos de BiS
+            -- Tooltip con metadatos interactivos
             row:SetScript("OnEnter", function(selfRow)
                 local sKey = selfRow.key
                 local s = (ns.GetSecret and ns.GetSecret(sKey)) or (ns.Data.Secrets and ns.Data.Secrets[sKey])
@@ -2139,6 +2279,74 @@ function MainUI:BuildSecretsList(parent)
 
                 GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
                 GameTooltip:ClearLines()
+
+                -- Caso especial: Guía para principiantes
+                if sKey == "beginners_guide" then
+                    GameTooltip:AddLine(string.format("|cFFFFD100%s|r", s.title), 1, 0.82, 0)
+                    GameTooltip:AddLine("Guía Estratégica Completa · World of Warcraft Forever", 0.5, 0.8, 1)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFFFFFFFFContenido cubierto:|r", 1, 1, 1)
+                    GameTooltip:AddLine("  • 9 Diferencias Críticas vs WoW Classic", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Checklist de la Primera Hora de Juego", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Profesiones Óptimas y Hito Nivel 20", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • La Regla de Oro del Fogón de Campamento", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Rutina de Visita a Poblados y Capitales", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Los 10 Errores Fatales a Evitar", 0.8, 0.9, 1)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FFCCPulsa o haz doble clic para abrir el visor interactivo HD.|r", 0, 1, 0.8)
+                    GameTooltip:Show()
+                    return
+                end
+
+                -- Caso especial: Guía de Bank Alt & Oro
+                if sKey == "bank_alt_guide" then
+                    GameTooltip:AddLine(string.format("|cFFFFD100%s|r", s.title), 1, 0.82, 0)
+                    GameTooltip:AddLine("Guía Económica & Inventario · World of Warcraft Forever", 0.5, 0.8, 1)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFFFFFFFFContenido cubierto:|r", 1, 1, 1)
+                    GameTooltip:AddLine("  • Los 4 Pilares de un Bank Alt (Bolsas, Subasta, Oro, Tiempo)", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • 7 Reglas de Oro de Gestión y Envío Preventivo", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Matriz de Clasificación de 5 Tipos de Objetos", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Preguntas Frecuentes (Razas, Cima del Trueno, Correo)", 0.8, 0.9, 1)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FFCCPulsa o haz doble clic para abrir el visor interactivo HD.|r", 0, 1, 0.8)
+                    GameTooltip:Show()
+                    return
+                end
+
+                -- Caso especial: Guía de Talentos Legacy (Method.gg)
+                if sKey == "legacy_talents_guide" then
+                    GameTooltip:AddLine(string.format("|cFFFFD100%s|r", s.title), 1, 0.82, 0)
+                    GameTooltip:AddLine("Guía Estratégica de Talentos Legacy · Method.gg", 0.5, 0.8, 1)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFFFFFFFFContenido cubierto:|r", 1, 1, 1)
+                    GameTooltip:AddLine("  • Fundamentos del Sistema y Límite de 16 Puntos", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • El Gran Debate: Thrill of Adventure vs Talented", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • 5 Builds Recomendadas (Speed Leveling, Crafter, Gatherer, PvP, Raids)", 0.8, 0.9, 1)
+                    GameTooltip:AddLine("  • Catálogo y Costes de Talentos Clave", 0.8, 0.9, 1)
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FFCCPulsa o haz doble clic para abrir el visor interactivo HD.|r", 0, 1, 0.8)
+                    GameTooltip:Show()
+                    return
+                end
+
+                -- Caso especial: Mazmorras
+                if s.category == "Guía" or s.subCategory == "Mazmorra" then
+                    GameTooltip:AddLine(string.format("|cFFFFD100%s|r", s.title), 1, 0.82, 0)
+                    GameTooltip:AddLine(string.format("%s · %s", s.dungeonType or "Mazmorra (5 jugadores)", s.level or "Nivel 24-30"), 0.5, 0.8, 1)
+                    if s.overview then
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine(s.overview, 1, 1, 1, true)
+                    end
+                    if s.entrance then
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddDoubleLine("|cFFFFD100Entrada:|r " .. s.entrance.name, string.format("(%.1f, %.1f)", s.entrance.x or 0, s.entrance.y or 0))
+                    end
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FFCCPulsa 'Ver Guía' para ver jefes, misiones y tabla de botín.|r", 0, 1, 0.8)
+                    GameTooltip:Show()
+                    return
+                end
 
                 local rItems = s.rewardItems
                 local primaryIndex = 1
@@ -2148,23 +2356,23 @@ function MainUI:BuildSecretsList(parent)
                     local curTier = s.currentTier or 1
                     if curTier == 1 then
                         if pClass == "ROGUE" or pClass == "HUNTER" or pClass == "DRUID" or pClass == "WARRIOR" then
-                            primaryIndex = 2 -- Amuleto de erudito (+2 Agi, +3 Agu)
+                            primaryIndex = 2
                         else
-                            primaryIndex = 1 -- Colgante de erudito (+3 Agu, +2 Esp)
+                            primaryIndex = 1
                         end
                     elseif curTier == 2 then
                         if pClass == "MAGE" or pClass == "WARLOCK" or pClass == "PRIEST" or pClass == "DRUID" or pClass == "PALADIN" or pClass == "SHAMAN" then
-                            primaryIndex = 4 -- Anillo de filántropo (+5 Int, +10 Hechizos)
+                            primaryIndex = 4
                         else
-                            primaryIndex = 3 -- Sortija del investigador de campo (+7 Agi, +7 Agu)
+                            primaryIndex = 3
                         end
                     else
                         if pClass == "HUNTER" or pClass == "ROGUE" or pClass == "WARRIOR" then
-                            primaryIndex = 5 -- Arco del buscador de la verdad (+7 Agi, +3 Agu)
+                            primaryIndex = 5
                         elseif pClass == "PALADIN" or pClass == "SHAMAN" or pClass == "WARRIOR" then
-                            primaryIndex = 6 -- Blasón de elucidación (+12 Esp, +7 Heal, Escudo)
+                            primaryIndex = 6
                         else
-                            primaryIndex = 7 -- Luz nocturna del investigador (+12 Agu, +7 Fuego, Mano izq)
+                            primaryIndex = 7
                         end
                     end
                 end
@@ -2183,7 +2391,6 @@ function MainUI:BuildSecretsList(parent)
                     end
                 end
 
-                -- Fallback si el cliente aún no tiene el objeto en caché o es un secreto sin ID nativo
                 if not hasNativeTooltip then
                     GameTooltip:AddLine(string.format("|cFFFFD100%s|r", s.title), 1, 0.82, 0)
                     if s.category then
@@ -2201,7 +2408,6 @@ function MainUI:BuildSecretsList(parent)
                     end
                 end
 
-                -- Recompensas adicionales u opciones alternativas (estilo BiSTracker)
                 if rItems and #rItems > 1 then
                     GameTooltip:AddLine(" ")
                     local altHeader = (sKey == "library_books") and "|cFFFFD100Opciones de recompensa y tiers:|r" or "|cFFFFD100Otras recompensas al completar:|r"
@@ -2226,14 +2432,12 @@ function MainUI:BuildSecretsList(parent)
                     end
                 end
 
-                -- Bonus especial para Magos
                 if sKey == "library_books" and select(2, UnitClass("player")) == "MAGE" then
                     GameTooltip:AddLine(" ")
                     GameTooltip:AddLine("|cFF00CCFFHabilidad Extra de Mago: Estudiar (Study)|r", 0, 0.8, 1)
                     GameTooltip:AddLine("   |cFF88DDFFAl entregar el 1er tomo aprendes 'Estudiar' (consume 1 Pluma ligera en una biblioteca para generar pergaminos diarios).|r", 0.7, 0.85, 1, true)
                 end
 
-                -- Metadatos de la misión al pie del tooltip (idéntico a la metodología BiS de Awakening)
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddDoubleLine("|cFFFFD100Secreto:|r " .. s.title, "|cFFFFD100Rango:|r |cFFFFFFFF" .. (s.level or "1-60") .. "|r")
                 GameTooltip:AddDoubleLine("|cFFFFD100Categoría:|r " .. (s.category or "Secreto"), "|cFFFFD100Facción:|r " .. (s.faction or "Ambas"))
@@ -2259,7 +2463,7 @@ function MainUI:BuildSecretsList(parent)
 
                 local stStr
                 if isDone then
-                    stStr = "|cFF00FF00Completado con éxito (25/25 Libros)|r"
+                    stStr = "|cFF00FF00Completado con éxito|r"
                 elseif sKey == "library_books" and s.collectedCount then
                     local target = s.targetCount or 10
                     local tier = s.currentTier or 1
@@ -2285,13 +2489,19 @@ function MainUI:BuildSecretsList(parent)
             row:SetScript("OnClick", function()
                 MainUI:SelectSecret(key)
             end)
+
             row:SetScript("OnDoubleClick", function()
                 MainUI:SelectSecret(key)
-                if ns.GuideHUD then
+                local s = (ns.GetSecret and ns.GetSecret(key)) or (ns.Data.Secrets and ns.Data.Secrets[key])
+                if key == "beginners_guide" or (s and (s.category == "Consejos" or s.category == "Guía" or s.subCategory == "Mazmorra")) then
+                    if ns.GuideViewer then
+                        ns.GuideViewer:Open(key)
+                    end
+                elseif ns.GuideHUD then
                     local curMilestone = (ns.GetSecretProgress and ns.GetSecretProgress(key)) or 1
                     local guideData, startStep = ns.GetDynamicSecretGuide and ns.GetDynamicSecretGuide(key, curMilestone)
                     if not guideData then
-                        guideData = (ns.GetSecret and ns.GetSecret(key)) or secret
+                        guideData = s or secret
                         startStep = curMilestone
                     end
                     ns.GuideHUD:StartRoute(guideData, key, startStep)
@@ -2337,6 +2547,40 @@ function MainUI:BuildSecretsList(parent)
     chkOld:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+function MainUI:UpdateSecretsSubTabs()
+    local parent = viewsByKey and viewsByKey["secrets"]
+    if not parent or not parent.subTabs then return end
+    for id, btn in pairs(parent.subTabs) do
+        local isActive = (id == currentSecretsSubTab)
+        if isActive then
+            btn:SetBackdropColor(0.22, 0.16, 0.05, 0.95)
+            btn:SetBackdropBorderColor(1.0, 0.82, 0.0, 1)
+            if btn.text then btn.text:SetTextColor(1, 0.85, 0.2) end
+        else
+            btn:SetBackdropColor(0.04, 0.04, 0.06, 0.85)
+            btn:SetBackdropBorderColor(0.25, 0.22, 0.15, 0.8)
+            if btn.text then btn.text:SetTextColor(0.8, 0.8, 0.8) end
+        end
+    end
+end
+
+function MainUI:UpdateSecretsFilters()
+    local parent = viewsByKey and viewsByKey["secrets"]
+    if not parent or not parent.filterChips then return end
+    for id, chip in pairs(parent.filterChips) do
+        local isActive = (id == currentSecretsFilter)
+        if isActive then
+            chip:SetBackdropColor(0.22, 0.16, 0.05, 0.95)
+            chip:SetBackdropBorderColor(1.0, 0.82, 0.0, 1)
+            if chip.text then chip.text:SetTextColor(1, 0.85, 0.2) end
+        else
+            chip:SetBackdropColor(0.04, 0.04, 0.06, 0.85)
+            chip:SetBackdropBorderColor(0.2, 0.18, 0.14, 0.7)
+            if chip.text then chip.text:SetTextColor(0.7, 0.7, 0.7) end
+        end
+    end
+end
+
 function MainUI:UpdateSecretsView()
     local parent = viewsByKey and viewsByKey["secrets"]
     local playerLevel = UnitLevel("player") or 1
@@ -2347,6 +2591,32 @@ function MainUI:UpdateSecretsView()
         parent.chkOld:SetChecked(showOld)
     end
 
+    self:UpdateSecretsSubTabs()
+    self:UpdateSecretsFilters()
+
+    -- Ajustar encabezados según la sub-pestaña seleccionada
+    if currentSecretsSubTab == "dungeons" then
+        SetColumnHeaders("Mazmorra / Rango", 260, 0, "Entrada / Región", 170, 261, "Ficha / Botín", 92, 432, "RIGHT")
+    elseif currentSecretsSubTab == "tips" then
+        SetColumnHeaders("Manual / Guía", 260, 0, "Enfoque / Región", 170, 261, "Capítulos", 92, 432, "RIGHT")
+    else
+        SetColumnHeaders("Secreto / Misión", 260, 0, "Zona / Distancia", 170, 261, "Progreso", 92, 432, "RIGHT")
+    end
+
+    -- Calcular progreso global y medidor semafórico
+    local totalTracked = #secretsOrder
+    local completedCount = 0
+    for _, k in ipairs(secretsOrder) do
+        local s = (ns.GetSecret and ns.GetSecret(k)) or (ns.Data.Secrets and ns.Data.Secrets[k])
+        if s and s.isCompleted then
+            completedCount = completedCount + 1
+        end
+    end
+    local pct = math.floor((completedCount / math.max(1, totalTracked)) * 100)
+    if mainFrame and mainFrame.heroTitle then
+        mainFrame.heroTitle:SetText(string.format("|cFFFFD100Guías & Secretos|r  |cFF00FF00·|r  |cFFFFFFFF%d/%d Descubiertos (%d%%)|r", completedCount, totalTracked, pct))
+    end
+
     local yOffset = 0
     local visibleCount = 0
     local firstVisibleKey = nil
@@ -2355,112 +2625,147 @@ function MainUI:UpdateSecretsView()
     for _, key in ipairs(secretsOrder) do
         local row = secretRowFrames[key]
         local secret = (ns.GetSecret and ns.GetSecret(key)) or (ns.Data.Secrets and ns.Data.Secrets[key])
-        
-        if row and secret and secret.steps then
-            local minLvl = secret.minLevel or 1
-            local maxLvl = secret.maxLevel or 60
-            local curStepIdx, isDone = (ns.GetSecretProgress and ns.GetSecretProgress(key)) or (secret.currentStep or 1), secret.isCompleted
-            
-            local isTooLow = (playerLevel < minLvl)
-            local isOld = (playerLevel > maxLvl)
-            
-            -- Lógica de visibilidad progresiva por nivel y requisitos de profesión:
-            local shouldShow = false
-            if secret.autoHideCompleted and isDone then
-                -- Guías que deben desaparecer definitivamente al completarse (ej. libro de cocina ya aprendido)
-                shouldShow = false
-            elseif secret.requiredProfession then
-                if isDone then
-                    shouldShow = false
-                elseif isEligible == false then
-                    shouldShow = false
-                else
-                    shouldShow = true
-                end
-            elseif isTooLow then
-                shouldShow = false
-            elseif not isOld then
-                shouldShow = true
-            else
-                shouldShow = showOld
+
+        if row and secret then
+            local isDungeon = (secret.category == "Guía" or secret.subCategory == "Mazmorra")
+            local isTip = (secret.category == "Consejos" or key == "beginners_guide")
+            local isSecret = not isDungeon and not isTip
+
+            local matchesSub = false
+            if currentSecretsSubTab == "secrets" and isSecret then matchesSub = true
+            elseif currentSecretsSubTab == "dungeons" and isDungeon then matchesSub = true
+            elseif currentSecretsSubTab == "tips" and isTip then matchesSub = true
             end
 
-            if shouldShow then
-                visibleCount = visibleCount + 1
-                firstVisibleKey = firstVisibleKey or key
-                if key == selectedSecretKey then
-                    selectedStillVisible = true
+            if not matchesSub then
+                row:Hide()
+            else
+                local minLvl = secret.minLevel or 1
+                local maxLvl = secret.maxLevel or 60
+                local curStepIdx, isDone = (ns.GetSecretProgress and ns.GetSecretProgress(key)) or (secret.currentStep or 1), secret.isCompleted
+                local isCurrentLvl = (playerLevel >= minLvl and playerLevel <= maxLvl)
+                local isTooLow = (playerLevel < minLvl)
+                local isOld = (playerLevel > maxLvl)
+
+                local matchesFilter = true
+                if currentSecretsFilter == "level" then
+                    matchesFilter = isCurrentLvl
+                elseif currentSecretsFilter == "pending" then
+                    matchesFilter = not isDone
+                elseif currentSecretsFilter == "completed" then
+                    matchesFilter = isDone
+                else -- "all"
+                    if secret.autoHideCompleted and isDone then
+                        matchesFilter = false
+                    elseif isTooLow then
+                        matchesFilter = false
+                    elseif isOld and not showOld then
+                        matchesFilter = false
+                    end
                 end
 
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", row:GetParent(), "TOPLEFT", 0, yOffset)
-                row:Show()
+                if matchesFilter then
+                    visibleCount = visibleCount + 1
+                    firstVisibleKey = firstVisibleKey or key
+                    if key == selectedSecretKey then
+                        selectedStillVisible = true
+                    end
 
-                local targetStep = (ns.GetSecretMilestoneTargetStep and ns.GetSecretMilestoneTargetStep(key, curStepIdx)) or (secret.steps and secret.steps[curStepIdx]) or secret.steps[1]
-                local activeStep = targetStep
-                row.icon:SetTexture(secret.icon or (activeStep and activeStep.icon) or "Interface\\Icons\\inv_misc_bag_07")
+                    row:ClearAllPoints()
+                    row:SetPoint("TOPLEFT", row:GetParent(), "TOPLEFT", 0, yOffset)
+                    row:Show()
 
-                -- Cálculo eficiente de distancia al hito activo reutilizando las funciones de viaje
-                local zoneText = activeStep and activeStep.zoneName or "Varias"
-                if isDone then
-                    row.zone:SetText(zoneText)
-                elseif playerLoc and activeStep and activeStep.uiMapID and activeStep.x and activeStep.y then
-                    local distYards = ns.GetDistanceAndHeading and ns.GetDistanceAndHeading(playerLoc.mapID, playerLoc.x, playerLoc.y, activeStep.uiMapID, activeStep.x, activeStep.y)
-                    if distYards then
-                        if distYards < 150 and playerLoc.mapID == activeStep.uiMapID then
-                            row.zone:SetText(string.format("%s · |cFF00FF00Aquí (%s)|r", zoneText, ns.FormatDistance(distYards)))
-                        elseif distYards < 1500 then
-                            row.zone:SetText(string.format("%s · |cFF00FF00%s|r", zoneText, ns.FormatDistance(distYards)))
+                    if key == "beginners_guide" then
+                        row.icon:SetTexture(secret.icon or "Interface\\Icons\\spell_holy_magicalsentry")
+                        row.title:SetText("|cFFFFD100" .. secret.title .. "|r")
+                        row.zone:SetText("Azeroth (WoW Forever)")
+                        row.steps:SetText("|cFF00FFCC[7 Capítulos]|r")
+                    elseif key == "bank_alt_guide" then
+                        row.icon:SetTexture(secret.icon or "Interface\\Icons\\inv_misc_coin_01")
+                        row.title:SetText("|cFFFFD100" .. secret.title .. "|r")
+                        row.zone:SetText("Capitales (Subasta & Banco)")
+                        row.steps:SetText("|cFF00FFCC[4 Capítulos]|r")
+                    elseif key == "legacy_talents_guide" then
+                        row.icon:SetTexture(secret.icon or "Interface\\Icons\\inv_misc_book_09")
+                        row.title:SetText("|cFFFFD100" .. secret.title .. "|r")
+                        row.zone:SetText("Azeroth (Progresión Cuenta)")
+                        row.steps:SetText("|cFF00FFCC[5 Builds]|r")
+                    elseif isDungeon then
+                        row.icon:SetTexture(secret.icon or "Interface\\Icons\\inv_helmet_08")
+                        row.title:SetText("|cFFFFD100" .. secret.title .. "|r")
+                        row.zone:SetText(string.format("%s (%s)", secret.zone or "Mundo", secret.level or "24-30"))
+                        if isDone then
+                            row.steps:SetText("|cFF00FF00[Superada]|r")
                         else
-                            row.zone:SetText(string.format("%s · |cFFFFD100%s|r", zoneText, ns.FormatDistance(distYards)))
+                            row.steps:SetText("|cFF00FFCC[Ficha & Botín]|r")
                         end
                     else
-                        local nearestId, _, nearestNode = ns.TravelPlanner and ns.TravelPlanner:FindNearestNode(activeStep.uiMapID, activeStep.x, activeStep.y)
-                        local contTag = nearestNode and nearestNode.continent
-                        if contTag and contTag ~= "" then
-                            row.zone:SetText(string.format("%s · |cFF88DDFF%s|r", zoneText, contTag))
+                        local targetStep = (ns.GetSecretMilestoneTargetStep and ns.GetSecretMilestoneTargetStep(key, curStepIdx)) or (secret.steps and secret.steps[curStepIdx]) or (secret.steps and secret.steps[1])
+                        local activeStep = targetStep
+                        row.icon:SetTexture(secret.icon or (activeStep and activeStep.icon) or "Interface\\Icons\\inv_misc_bag_07")
+
+                        local zoneText = activeStep and activeStep.zoneName or "Varias"
+                        if isDone then
+                            row.zone:SetText(zoneText)
+                        elseif playerLoc and activeStep and activeStep.uiMapID and activeStep.x and activeStep.y then
+                            local distYards = ns.GetDistanceAndHeading and ns.GetDistanceAndHeading(playerLoc.mapID, playerLoc.x, playerLoc.y, activeStep.uiMapID, activeStep.x, activeStep.y)
+                            if distYards then
+                                if distYards < 150 and playerLoc.mapID == activeStep.uiMapID then
+                                    row.zone:SetText(string.format("%s · |cFF00FF00Aquí (%s)|r", zoneText, ns.FormatDistance(distYards)))
+                                elseif distYards < 1500 then
+                                    row.zone:SetText(string.format("%s · |cFF00FF00%s|r", zoneText, ns.FormatDistance(distYards)))
+                                else
+                                    row.zone:SetText(string.format("%s · |cFFFFD100%s|r", zoneText, ns.FormatDistance(distYards)))
+                                end
+                            else
+                                local nearestId, _, nearestNode = ns.TravelPlanner and ns.TravelPlanner:FindNearestNode(activeStep.uiMapID, activeStep.x, activeStep.y)
+                                local contTag = nearestNode and nearestNode.continent
+                                if contTag and contTag ~= "" then
+                                    row.zone:SetText(string.format("%s · |cFF88DDFF%s|r", zoneText, contTag))
+                                else
+                                    row.zone:SetText(zoneText)
+                                end
+                            end
                         else
                             row.zone:SetText(zoneText)
                         end
-                    end
-                else
-                    row.zone:SetText(zoneText)
-                end
 
-                if isDone then
-                    row.title:SetText(secret.title)
-                    row.steps:SetText("|cFF00FF00[Listo]|r")
-                elseif key == "sleeping_bag" then
-                    row.title:SetText(secret.title)
-                    row.steps:SetText(string.format("|cFFFFD100Hito %d/7|r", curStepIdx))
-                elseif key == "expert_cooking" and secret.currentSkill then
-                    row.title:SetText(secret.title)
-                    row.steps:SetText(string.format("|cFFFFD100%d/150|r", secret.currentSkill))
-                elseif key == "library_books" and secret.collectedCount then
-                    row.title:SetText(secret.title)
-                    local target = secret.targetCount or 10
-                    local tier = secret.currentTier or 1
-                    if isDone then
-                        row.steps:SetText("|cFF00FF00[Listo (25/25)]|r")
-                    elseif secret.collectedCount >= target then
-                        row.steps:SetText(string.format("|cFF00FFCCEntrega (T%d)|r", tier))
-                    else
-                        row.steps:SetText(string.format("|cFFFFD100%d/%d (T%d)|r", secret.collectedCount, target, tier))
+                        if isDone then
+                            row.title:SetText(secret.title)
+                            row.steps:SetText("|cFF00FF00[Listo]|r")
+                        elseif key == "sleeping_bag" then
+                            row.title:SetText(secret.title)
+                            row.steps:SetText(string.format("|cFFFFD100Hito %d/7|r", curStepIdx))
+                        elseif key == "expert_cooking" and secret.currentSkill then
+                            row.title:SetText(secret.title)
+                            row.steps:SetText(string.format("|cFFFFD100%d/150|r", secret.currentSkill))
+                        elseif key == "library_books" and secret.collectedCount then
+                            row.title:SetText(secret.title)
+                            local target = secret.targetCount or 10
+                            local tier = secret.currentTier or 1
+                            if isDone then
+                                row.steps:SetText("|cFF00FF00[Listo (25/25)]|r")
+                            elseif secret.collectedCount >= target then
+                                row.steps:SetText(string.format("|cFF00FFCCEntrega (T%d)|r", tier))
+                            else
+                                row.steps:SetText(string.format("|cFFFFD100%d/%d (T%d)|r", secret.collectedCount, target, tier))
+                            end
+                        elseif isOld then
+                            row.title:SetText(string.format("|cFFBBBBBB%s|r", secret.title))
+                            row.steps:SetText(string.format("|cFF888888Hito %d/%d|r", curStepIdx, secret.steps and #secret.steps or 1))
+                        elseif secret.steps and #secret.steps > 1 then
+                            row.title:SetText(secret.title)
+                            row.steps:SetText(string.format("|cFFFFD100Hito %d/%d|r", curStepIdx, #secret.steps))
+                        else
+                            row.title:SetText(secret.title)
+                            row.steps:SetText(secret.steps and tostring(#secret.steps) or "1")
+                        end
                     end
-                elseif isOld then
-                    row.title:SetText(string.format("|cFFBBBBBB%s|r", secret.title))
-                    row.steps:SetText(string.format("|cFF888888Hito %d/%d|r", curStepIdx, #secret.steps))
-                elseif #secret.steps > 1 then
-                    row.title:SetText(secret.title)
-                    row.steps:SetText(string.format("|cFFFFD100Hito %d/%d|r", curStepIdx, #secret.steps))
-                else
-                    row.title:SetText(secret.title)
-                    row.steps:SetText(string.format("%d", #secret.steps))
-                end
 
-                yOffset = yOffset - 22
-            else
-                row:Hide()
+                    yOffset = yOffset - 22
+                else
+                    row:Hide()
+                end
             end
         elseif row then
             row:Hide()
@@ -2473,7 +2778,8 @@ function MainUI:UpdateSecretsView()
 
     if parent and parent.emptyLabel then
         if visibleCount == 0 then
-            parent.emptyLabel:SetText(string.format("|cFF888888No hay secretos activos para tu nivel actual (%d).\n\nActiva la casilla 'Mostrar secretos antiguos' abajo para ver los que dejaste pasar.|r", playerLevel))
+            local subMsg = (currentSecretsSubTab == "dungeons") and "mazmorras" or ((currentSecretsSubTab == "tips") and "guías de juego" or "secretos")
+            parent.emptyLabel:SetText(string.format("|cFF888888No hay %s que coincidan con el filtro activo.\n\nPrueba seleccionando 'Todos' o activando 'Mostrar secretos antiguos'.|r", subMsg))
             parent.emptyLabel:Show()
         else
             parent.emptyLabel:Hide()
@@ -2529,13 +2835,72 @@ function MainUI:SelectSecret(key)
             else
                 stBadge = string.format("|cFFFFD100[Tier %d · %d de %d Tomos Recolectados]|r", tier, secret.collectedCount, target)
             end
+        elseif key == "beginners_guide" then
+            stBadge = "|cFF00FF00[7 CAPÍTULOS INTERACTIVOS]|r"
+        elseif key == "bank_alt_guide" then
+            stBadge = "|cFF00FF00[4 CAPÍTULOS INTERACTIVOS]|r"
+        elseif secret.category == "Consejos" then
+            stBadge = "|cFF00FF00[GUÍA ESTRATÉGICA]|r"
+        elseif secret.category == "Guía" or secret.subCategory == "Mazmorra" then
+            stBadge = "|cFFFFD100[GUÍA OFICIAL WOWHEAD]|r"
         elseif isOld then
-            stBadge = string.format("|cFF888888[Hito %d/%d · Nivel Superado]|r", curStepIdx, #secret.steps)
+            stBadge = string.format("|cFF888888[Hito %d/%d · Nivel Superado]|r", curStepIdx, secret.steps and #secret.steps or 1)
         else
-            stBadge = string.format("|cFFFFD100[Hito %d de %d]|r", curStepIdx, #secret.steps)
+            stBadge = string.format("|cFFFFD100[Hito %d de %d]|r", curStepIdx, secret.steps and #secret.steps or 1)
         end
 
         mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s|r · |cFF00FFCC%s|r %s", secret.title, secret.category or "Misión Secreta", stBadge))
+
+        -- Caso especial: Guía para Principiantes
+        if key == "beginners_guide" then
+            self:ShowDetailRewards(nil)
+            local guideLines = {
+                "|cFFFFCC00Capítulos Clave & Sistemas Forever:|r",
+                "  1. |cFFFFD100Diferencias WoW Forever vs Classic:|r Regla de 1h de Piedra de Hogar, Fogón de campamento, recetas azules.",
+                "  2. |cFFFFD100La Primera Hora de Juego:|r Checklist interactivo de 6 tareas críticas al crear personaje.",
+                "  3. |cFFFFD100Profesiones & La Regla de Oro del Fogón:|r Habilidad 20 a nivel 10, Parejas óptimas recomendadas.",
+                "  4. |cFFFFD10010 Errores Fatales a Evitar:|r Los 10 fallos más comunes de novatos y el enfoque óptimo Forever.",
+                " ",
+                "|cFF00FFCCPulsa 'Leer Guía' o haz doble clic para abrir el Visor Interactivo HD con pestañas temáticas y checklist.|r"
+            }
+            mainFrame.detailText:SetText(table.concat(guideLines, "\n"))
+            self:UpdateBottomButtons()
+            return
+        end
+
+        -- Caso especial: Guía de Bank Alt & Oro
+        if key == "bank_alt_guide" then
+            self:ShowDetailRewards(nil)
+            local guideLines = {
+                "|cFFFFCC00Capítulos Clave & Estrategia Económica:|r",
+                "  1. |cFFFFD100Fundamentos & 4 Pilares:|r Bolsas limpias, subasta centralizada, reserva de oro y cero viajes.",
+                "  2. |cFFFFD1007 Reglas de Oro de Gestión:|r Envío preventivo por correo, no ser basurero, proteger BoEs.",
+                "  3. |cFFFFD100Matriz de Inventario:|r Clasificación de materiales, BoEs, oro, basura y especulación.",
+                "  4. |cFFFFD100Preguntas Frecuentes (FAQ):|r Tauren en Cima del Trueno, bolsas iniciales y correo instantáneo.",
+                " ",
+                "|cFF00FFCCPulsa 'Leer Guía' o haz doble clic para abrir el Visor Interactivo HD con pilares y matriz.|r"
+            }
+            mainFrame.detailText:SetText(table.concat(guideLines, "\n"))
+            self:UpdateBottomButtons()
+            return
+        end
+
+        -- Caso especial: Guía de Talentos Legacy (Method.gg)
+        if key == "legacy_talents_guide" then
+            self:ShowDetailRewards(nil)
+            local guideLines = {
+                "|cFFFFCC00Capítulos Clave & Meta Builds (Method.gg):|r",
+                "  1. |cFFFFD100Fundamentos & 3 Árboles:|r Progresión de cuenta, límite de 16 pts y reseteo por 10g.",
+                "  2. |cFFFFD100Debate Thrill vs Talented:|r Regeneración pasiva por kill vs 5 talentos adelantados.",
+                "  3. |cFFFFD1005 Builds del Meta Method:|r Speed Leveling, Crafter, Gatherer Alt, PvP y Raiding.",
+                "  4. |cFFFFD100Catálogo de Talentos Clave:|r Reinforce, Dedicated Study, The Quick and the Dead, etc.",
+                " ",
+                "|cFF00FFCCPulsa 'Leer Guía' o haz doble clic para abrir el Visor Interactivo HD con builds y análisis.|r"
+            }
+            mainFrame.detailText:SetText(table.concat(guideLines, "\n"))
+            self:UpdateBottomButtons()
+            return
+        end
 
         -- Configurar contenedor interactivo de recompensas con tooltips nativos
         if secret.rewardItems and #secret.rewardItems > 0 then
@@ -2615,11 +2980,15 @@ function MainUI:SelectSecret(key)
             table.insert(lines, stepDesc)
         end
 
-        if not isDone then
+        if secret.category == "Guía" or secret.subCategory == "Mazmorra" then
+            table.insert(lines, "|cFF00FF00Interfaz Wowhead disponible:|r Ficha Técnica, Misiones, Estrategia de Jefes y Tabla de Botín.")
+            table.insert(lines, "|cFFFFD100Pulsa '|cFF00FFCCVer Guía|r' abajo o haz doble clic para abrir el visor interactivo.|r")
+        elseif not isDone then
             table.insert(lines, "|cFF888888Pulsa '|cFFFFD100Iniciar Ruta|r' para el compás HUD, o '|cFFFFD100Planificar Viaje|r' para ver vuelos y barcos.|r")
         end
 
         mainFrame.detailText:SetText(table.concat(lines, "\n"))
+        self:UpdateBottomButtons()
     end
 end
 
@@ -3950,6 +4319,13 @@ function MainUI:OnActionButton1()
     if currentKey == "bis" then
         self:SetBiSWaypoint()
     elseif currentKey == "secrets" then
+        local s = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
+        if selectedSecretKey == "beginners_guide" or selectedSecretKey == "bank_alt_guide" or (s and s.category == "Consejos") then
+            if ns.GuideViewer then
+                ns.GuideViewer:Open(selectedSecretKey)
+            end
+            return
+        end
         local curMilestone = (ns.GetSecretProgress and ns.GetSecretProgress(selectedSecretKey)) or 1
         local guideData, startStep = ns.GetDynamicSecretGuide and ns.GetDynamicSecretGuide(selectedSecretKey, curMilestone)
         if not guideData then
@@ -4021,6 +4397,16 @@ function MainUI:OnActionButton2()
         end
     elseif currentKey == "secrets" then
         local secret = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
+        if selectedSecretKey == "beginners_guide" or selectedSecretKey == "bank_alt_guide" or (secret and secret.category == "Consejos") then
+            if ns.GuideViewer then
+                ns.GuideViewer:Open(selectedSecretKey)
+            end
+            return
+        end
+        if secret and (secret.category == "Guía" or secret.subCategory == "Mazmorra") and ns.GuideViewer then
+            ns.GuideViewer:Open(selectedSecretKey)
+            return
+        end
         if secret and secret.steps then
             local curStepIdx = (ns.GetSecretProgress and ns.GetSecretProgress(selectedSecretKey)) or (secret.currentStep or 1)
             local curStep = (ns.GetSecretMilestoneTargetStep and ns.GetSecretMilestoneTargetStep(selectedSecretKey, curStepIdx)) or secret.steps[curStepIdx] or secret.steps[1]
@@ -4052,6 +4438,8 @@ function MainUI:OnActionButton2()
         if ns.RaidPrep then
             if ns.RaidPrep.currentSubMode == "camping" then
                 if ns.RaidPrep.ScanParty then ns.RaidPrep:ScanParty() end
+            elseif ns.RaidPrep.currentSubMode == "audit" then
+                if ns.RaidPrep.UpdateAudit then ns.RaidPrep:UpdateAudit() end
             else
                 if ns.RaidPrep.ScanInventory then ns.RaidPrep:ScanInventory() end
             end
@@ -4070,11 +4458,9 @@ end
 function MainUI:UpdatePrepTabButtons()
     local currentKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key
     if currentKey == "prep" then
-        if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
-            SetColumnHeaders("Mejora de Campamento", 195, 0, "Profesión / Req", 90, 196, "Beneficio / Estado", 177, 287, "RIGHT")
-        else
-            SetColumnHeaders("Consumible", 310, 0, "Inventario", 154, 311, nil, nil, nil, nil, "RIGHT")
-        end
+        if colHeaderButtons[1] then colHeaderButtons[1]:Hide() end
+        if colHeaderButtons[2] then colHeaderButtons[2]:Hide() end
+        if colHeaderButtons[3] then colHeaderButtons[3]:Hide() end
         self:UpdateBottomButtons()
     end
 end
@@ -4093,8 +4479,17 @@ function MainUI:UpdateBottomButtons()
         end
         bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "secrets" then
-        bottomButtons[1]:SetText("Iniciar Ruta")
-        bottomButtons[2]:SetText("Planificar Viaje")
+        local s = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
+        if selectedSecretKey == "beginners_guide" or (s and s.category == "Consejos") then
+            bottomButtons[1]:SetText("Leer Guía")
+            bottomButtons[2]:SetText("Modo HD")
+        elseif s and (s.category == "Guía" or s.subCategory == "Mazmorra") then
+            bottomButtons[1]:SetText("Iniciar Ruta")
+            bottomButtons[2]:SetText("Ver Guía")
+        else
+            bottomButtons[1]:SetText("Iniciar Ruta")
+            bottomButtons[2]:SetText("Planificar Viaje")
+        end
         bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "farming" then
         bottomButtons[1]:SetText("Iniciar Ruta")
@@ -4104,11 +4499,14 @@ function MainUI:UpdateBottomButtons()
         if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
             bottomButtons[1]:SetText("Transmitir Camp")
             bottomButtons[2]:SetText("Escanear Grupo")
+        elseif ns.RaidPrep and ns.RaidPrep.currentSubMode == "audit" then
+            bottomButtons[1]:SetText("Comprobar Grupo")
+            bottomButtons[2]:SetText("Reescanear")
         else
             bottomButtons[1]:SetText("Transmitir Prep")
             bottomButtons[2]:SetText("Reescanear")
         end
-        bottomButtons[3]:SetText("Habilidades")
+        bottomButtons[3]:SetText("Vista HD")
     elseif currentKey == "travel" then
         if currentTravelPlan and currentTravelPlan.success then
             bottomButtons[1]:SetText("Iniciar (" .. math.floor(currentTravelPlan.totalMinutes or 0) .. "m)")
@@ -4171,11 +4569,9 @@ function MainUI:SelectTab(indexOrKey)
         self:ShowDetailRewards(nil)
         self:UpdateFarmingView()
     elseif currentKey == "prep" then
-        if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
-            SetColumnHeaders("Mejora de Campamento", 225, 0, "Profesión / Req", 105, 226, "Beneficio / Estado", 192, 332, "RIGHT")
-        else
-            SetColumnHeaders("Consumible", 355, 0, "Inventario", 167, 356, nil, nil, nil, nil, "RIGHT")
-        end
+        if colHeaderButtons[1] then colHeaderButtons[1]:Hide() end
+        if colHeaderButtons[2] then colHeaderButtons[2]:Hide() end
+        if colHeaderButtons[3] then colHeaderButtons[3]:Hide() end
         self:UpdateBottomButtons()
         if ns.RaidPrep and ns.RaidPrep.Update then
             ns.RaidPrep:Update()

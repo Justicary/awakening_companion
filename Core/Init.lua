@@ -58,6 +58,106 @@ function ns.SafeCall(tag, func, ...)
 end
 
 -- =========================================================================
+-- UI STYLING & TEXTURAS (Inspirado en Chairfaces Casino)
+-- =========================================================================
+local TAVERN_TEX = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\lobby_bg"
+local TAVERN_ASPECT = 720 / 490
+
+local function tavernCover(tex, frame)
+    local w, h = frame:GetWidth(), frame:GetHeight()
+    if not w or not h or w <= 0 or h <= 0 then return end
+    local frameAspect = w / h
+    if frameAspect > TAVERN_ASPECT then
+        local vis = TAVERN_ASPECT / frameAspect
+        local crop = (1 - vis) / 2
+        tex:SetTexCoord(0, 1, crop, 1 - crop)
+    else
+        local vis = frameAspect / TAVERN_ASPECT
+        local crop = (1 - vis) / 2
+        tex:SetTexCoord(crop, 1 - crop, 0, 1)
+    end
+end
+
+function ns.ApplyTavernBackground(frame, opts)
+    if not frame or frame.__tavernBg then return frame and frame.__tavernBg end
+    opts = opts or {}
+    local texPath = opts.texture or TAVERN_TEX
+    
+    if frame.SetBackdropColor then
+        frame:SetBackdropColor(0.06, 0.05, 0.07, 0.97)
+    end
+    local art = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
+    art:SetPoint("TOPLEFT", 3, -3)
+    art:SetPoint("BOTTOMRIGHT", -3, 3)
+    art:SetTexture(texPath)
+    
+    local scrim = frame:CreateTexture(nil, "BACKGROUND", nil, 2)
+    scrim:SetAllPoints(art)
+    scrim:SetColorTexture(0.03, 0.02, 0.05, opts.scrim or 0.65)
+    
+    frame.__tavernBg = art
+    frame.__tavernScrim = scrim
+    
+    local function refresh() tavernCover(art, frame) end
+    refresh()
+    frame:HookScript("OnSizeChanged", refresh)
+    frame:HookScript("OnShow", refresh)
+    return art
+end
+
+function ns.CreateGameButton(parent, name, text, width, height)
+    local btn = CreateFrame("Button", name, parent, "BackdropTemplate")
+    btn:SetSize(width or 120, height or 28)
+    btn:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    btn:SetBackdropColor(0.12, 0.25, 0.15, 0.9)
+    btn:SetBackdropBorderColor(0.3, 0.7, 0.3, 0.9)
+
+    local btnText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    btnText:SetPoint("CENTER")
+    btnText:SetText(text or "")
+    btn.text = btnText
+
+    btn:SetScript("OnEnter", function(self)
+        if self:IsEnabled() then
+            self:SetBackdropColor(0.2, 0.5, 0.2, 1)
+            self:SetBackdropBorderColor(0.4, 1.0, 0.4, 1)
+            if self.text then self.text:SetTextColor(1, 1, 1, 1) end
+        end
+    end)
+
+    btn:SetScript("OnLeave", function(self)
+        if self:IsEnabled() then
+            if self.highlighted then
+                self:SetBackdropColor(0.35, 0.28, 0.1, 1)
+                self:SetBackdropBorderColor(0.8, 0.65, 0.2, 1)
+            else
+                self:SetBackdropColor(0.12, 0.25, 0.15, 0.9)
+                self:SetBackdropBorderColor(0.3, 0.7, 0.3, 0.9)
+            end
+            if self.text then self.text:SetTextColor(0.9, 0.9, 0.9, 1) end
+        end
+    end)
+
+    btn:SetScript("OnDisable", function(self)
+        self:SetBackdropColor(0.1, 0.1, 0.1, 0.6)
+        self:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.6)
+        if self.text then self.text:SetTextColor(0.5, 0.5, 0.5, 1) end
+    end)
+
+    btn:SetScript("OnEnable", function(self)
+        self:SetBackdropColor(0.12, 0.25, 0.15, 0.9)
+        self:SetBackdropBorderColor(0.3, 0.7, 0.3, 0.9)
+        if self.text then self.text:SetTextColor(1, 1, 1, 1) end
+    end)
+
+    return btn
+end
+
+-- =========================================================================
 -- MANEJO SEGURO DE COMBATE (Blizzard Lockdown Protection)
 -- =========================================================================
 local combatDeferredQueue = {}
@@ -394,6 +494,11 @@ SlashCmdList["AWAKENING"] = function(msg)
         if ns.GuideHUD then
             ns.GuideHUD:Toggle()
         end
+    elseif cmd == "guide" or cmd == "guia" or cmd:match("^guia%s") or cmd:match("^guide%s") then
+        local guideId = cmd:match("^guia%s+(.+)$") or cmd:match("^guide%s+(.+)$")
+        if ns.GuideViewer then
+            ns.GuideViewer:Toggle(guideId or "excavation_site")
+        end
     elseif cmd == "bis" then
         if ns.MainUI then
             ns.MainUI:OpenTab("bis")
@@ -406,9 +511,13 @@ SlashCmdList["AWAKENING"] = function(msg)
         if ns.MainUI then
             ns.MainUI:OpenTab("farming")
         end
-    elseif cmd == "prep" then
+    elseif cmd == "prep" or cmd == "preparacion" then
         if ns.MainUI then
             ns.MainUI:OpenTab("prep")
+        end
+    elseif cmd == "prephd" or cmd == "prep hd" or cmd == "raidprep" then
+        if ns.RaidPrep and ns.RaidPrep.ToggleHD then
+            ns.RaidPrep:ToggleHD()
         end
     elseif cmd == "guild" or cmd == "hermandad" then
         if ns.MainUI then
