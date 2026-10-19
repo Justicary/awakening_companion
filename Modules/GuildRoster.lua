@@ -21,8 +21,9 @@ function GuildRoster:Build(parent)
 
     -- Resumen superior
     local headerBar = CreateFrame("Frame", nil, containerFrame, "BackdropTemplate")
-    headerBar:SetSize(424, 26)
     headerBar:SetPoint("TOPLEFT", containerFrame, "TOPLEFT", 4, -4)
+    headerBar:SetPoint("RIGHT", containerFrame, "RIGHT", -26, 0)
+    headerBar:SetHeight(26)
     headerBar:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -54,7 +55,7 @@ function GuildRoster:Build(parent)
     scrollFrame:SetPoint("BOTTOMRIGHT", containerFrame, "BOTTOMRIGHT", -26, 4)
 
     contentFrame = CreateFrame("Frame", nil, scrollFrame)
-    contentFrame:SetSize(394, 10)
+    contentFrame:SetSize(720, 10)
     scrollFrame:SetScrollChild(contentFrame)
 
     -- Evento para actualizar cuando el servidor envíe datos de hermandad
@@ -98,7 +99,7 @@ function GuildRoster:Update()
             local row = memberRows[visibleIndex]
             if not row then
                 row = CreateFrame("Frame", nil, contentFrame, "BackdropTemplate")
-                row:SetSize(394, 26)
+                row:SetSize(720, 26)
                 row:SetBackdrop({
                     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
                     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -109,22 +110,22 @@ function GuildRoster:Update()
 
                 local nameLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 nameLabel:SetPoint("LEFT", row, "LEFT", 8, 0)
-                nameLabel:SetWidth(130)
+                nameLabel:SetWidth(220)
                 nameLabel:SetJustifyH("LEFT")
 
                 local levelLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                 levelLabel:SetPoint("LEFT", nameLabel, "RIGHT", 4, 0)
-                levelLabel:SetWidth(40)
+                levelLabel:SetWidth(50)
                 levelLabel:SetJustifyH("CENTER")
 
                 local zoneLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 zoneLabel:SetPoint("LEFT", levelLabel, "RIGHT", 8, 0)
-                zoneLabel:SetWidth(120)
+                zoneLabel:SetWidth(260)
                 zoneLabel:SetJustifyH("LEFT")
 
                 local rankLabel = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
                 rankLabel:SetPoint("RIGHT", row, "RIGHT", -8, 0)
-                rankLabel:SetWidth(80)
+                rankLabel:SetWidth(180)
                 rankLabel:SetJustifyH("RIGHT")
 
                 row.nameLabel = nameLabel

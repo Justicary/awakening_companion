@@ -20,6 +20,7 @@ Data/SecretsData.lua
 Data/BiSData.lua
 Data/StatWeightsData.lua
 Data/FarmingData.lua
+Data/ProfessionTrainersData.lua
 Data/CampingData.lua
 Data/SkillsData.lua
 Data/TravelData.lua

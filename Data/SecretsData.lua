@@ -1174,9 +1174,103 @@ ns.Data.ExcavationSiteSteps = {
 }
 
 -- -------------------------------------------------------------------------
+-- PASOS PARA LA ALIANZA: NADAR A BAHÍA DEL BOTÍN (5 HITOS COSTEROS)
+-- Ruta de natación segura para personajes Alianza de Nivel 10 a 30
+-- -------------------------------------------------------------------------
+ns.Data.SwimToBootyBaySteps = {
+    [1] = {
+        stepNum = 1,
+        title = "1. Punto de Partida (Páramos de Poniente)",
+        instruction = "Ve al extremo suroeste de Páramos de Poniente (30.0, 85.0). Entra al agua aquí y comienza a nadar hacia el sur bordeando la costa hacia Vega de Tuercespina.",
+        uiMapID = 1436, -- Westfall
+        zoneName = "Páramos de Poniente",
+        x = 30.0,
+        y = 85.0,
+        isMilestone = true,
+        milestone = 1,
+        action = "Entrar al agua y nadar al sur",
+        tip = "El 'Sweet Spot': Nada justo por la línea divisoria donde el agua clara pasa a profunda/oscura. Te mantiene a salvo de enemigos terrestres y murlocs sin activar la fatiga.",
+        icon = "Interface\\Icons\\ability_druid_aquaticform",
+    },
+    [2] = {
+        stepNum = 2,
+        title = "2. Costa Norte de Tuercespina (Aguas Profundas)",
+        instruction = "Continúa nadando hacia el sur en aguas profundas (19.0, 22.0). Aléjate de la orilla para no llamar la atención de bestias costeras.",
+        uiMapID = 1434, -- Stranglethorn Vale
+        zoneName = "Vega de Tuercespina",
+        x = 19.0,
+        y = 22.0,
+        isMilestone = true,
+        milestone = 2,
+        action = "Nadar bordeando la costa",
+        tip = "Evitar Fatiga: Si aparece la barra de 'Fatiga' en pantalla, gira de inmediato hacia la orilla unos metros hasta que se desvanezca por completo.",
+        icon = "Interface\\Icons\\spell_nature_swiftness",
+    },
+    [3] = {
+        stepNum = 3,
+        title = "3. Paso Costero de Grom'gol",
+        instruction = "Sigue nadando hacia el sur pasando de largo el campamento Horda de Grom'gol (16.0, 45.0). Mantén una distancia prudencial en el agua para no alertar a los guardias.",
+        uiMapID = 1434, -- Stranglethorn Vale
+        zoneName = "Vega de Tuercespina",
+        x = 16.0,
+        y = 45.0,
+        isMilestone = true,
+        milestone = 3,
+        action = "Pasar Grom'gol por el mar",
+        tip = "Alerta Territorio Horda: En Grom'gol atracan zepelines y patrullan guardias de alto nivel. La costa es recta y permite un nado seguro a distancia.",
+        icon = "Interface\\Icons\\inv_misc_compass_01",
+    },
+    [4] = {
+        stepNum = 4,
+        title = "4. Arrecife de los Elementales de Agua",
+        instruction = "Continúa hacia el sur hacia (21.0, 73.0), bordeando los arrecifes costeros y manteniéndote alejado de los elementales de agua y piratas de la orilla.",
+        uiMapID = 1434, -- Stranglethorn Vale
+        zoneName = "Vega de Tuercespina",
+        x = 21.0,
+        y = 73.0,
+        isMilestone = true,
+        milestone = 4,
+        action = "Esquivar elementales y piratas",
+        tip = "Punto de referencia: Al acercarte a la punta sur verás la silueta de la colosal estatua goblin que corona la entrada al puerto de Bahía del Botín.",
+        icon = "Interface\\Icons\\spell_frost_summonwaterelemental",
+    },
+    [5] = {
+        stepNum = 5,
+        title = "5. Rampa del Muelle de Bahía del Botín",
+        instruction = "Gira al este hacia el interior de la ensenada del puerto de Bahía del Botín (27.0, 74.0). Sube por la rampa de madera en el centro de los muelles. ¡Sintoniza de inmediato la ruta de vuelo con el Maestro de Vuelo de la Alianza arriba en la terraza!",
+        uiMapID = 1434, -- Stranglethorn Vale
+        zoneName = "Vega de Tuercespina",
+        x = 27.0,
+        y = 74.0,
+        isMilestone = true,
+        milestone = 5,
+        action = "Subir por la rampa y tomar la ruta de vuelo",
+        tip = "¡Llegada triunfal! Ya dispones de la ruta de vuelo más importante del sur de los Reinos del Este y acceso al barco hacia Ratchet (Kalimdor), no olvides tomar el punto de vuelo (63, 37.2).",
+        icon = "Interface\\Icons\\ability_mount_ridinghorse",
+    },
+}
+
+-- -------------------------------------------------------------------------
 -- BASE DE DATOS MAESTRA DE SECRETOS
 -- -------------------------------------------------------------------------
 ns.Data.Secrets = {
+    ["swim_to_booty_bay"] = {
+        id = "swim_to_booty_bay",
+        title = "Nadar a Bahía del Botín (Ruta de Exploración)",
+        titleEn = "Swim to Booty Bay",
+        category = "Ruta de Exploración",
+        faction = "Alliance",
+        level = "Nivel 10 - 30",
+        minLevel = 10,
+        maxLevel = 30,
+        reward = "Ruta de vuelo de Bahía del Botín, barco a Trinquete y misiones tempranas",
+        rewardItems = {
+            { name = "Punto de Vuelo: Bahía del Botín", quality = 2, icon = "Interface\\Icons\\ability_mount_ridinghorse", desc = "Conexión aérea clave en el sur de los Reinos del Este y acceso a Kalimdor vía barco." },
+            { itemID = 6372, name = "Poción de velocidad de nado", quality = 1, icon = "Interface\\Icons\\inv_potion_01", desc = "Aumenta la velocidad de nado un 100% durante 20 s (Opcional)." },
+        },
+        icon = "Interface\\Icons\\ability_druid_aquaticform",
+        steps = ns.Data.SwimToBootyBaySteps,
+    },
     ["sleeping_bag"] = {
         id = "sleeping_bag",
         title = "Saco de Dormir Acogedor (Buff +3% Exp)",
@@ -1942,6 +2036,12 @@ function ns.GetSecretProgress(secretKey)
             return 4, false
         end
         return 1, false
+    elseif secretKey == "swim_to_booty_bay" then
+        local saved = AwakeningDB and AwakeningDB.secretProgress and AwakeningDB.secretProgress["swim_to_booty_bay"]
+        if saved and saved >= 5 then
+            return 5, true
+        end
+        return saved or 1, false
     elseif secretKey == "beginners_guide" or secretKey == "bank_alt_guide" or secretKey == "legacy_talents_guide" then
         return 1, false
     end
@@ -2017,6 +2117,9 @@ function ns.GetSecretMilestoneTargetStep(secretKey, milestone)
         local faction = UnitFactionGroup("player") or "Alliance"
         local steps = (faction == "Horde") and ns.Data.ExpertCookingStepsHorde or ns.Data.ExpertCookingStepsAlliance
         return steps[m] or steps[1]
+    elseif secretKey == "swim_to_booty_bay" then
+        local steps = ns.Data.SwimToBootyBaySteps
+        return steps and (steps[m] or steps[1])
     end
 
     return secret.steps[m] or secret.steps[1]
@@ -2040,6 +2143,10 @@ end
 function ns.GetDynamicSecretGuide(secretKey, curMilestone)
     local secret = ns.GetSecret and ns.GetSecret(secretKey)
     if not secret then return nil end
+
+    if secretKey == "swim_to_booty_bay" then
+        return secret, curMilestone or 1
+    end
 
     local milestone = curMilestone or (ns.GetSecretProgress and ns.GetSecretProgress(secretKey)) or 1
     local targetStep = ns.GetSecretMilestoneTargetStep(secretKey, milestone)
@@ -2159,6 +2266,9 @@ local function InitFactionSteps()
     end
     if ns.Data.Secrets and ns.Data.Secrets["library_books"] then
         ns.Data.Secrets["library_books"].steps = ns.Data.UniqueLibraryBooks
+    end
+    if ns.Data.Secrets and ns.Data.Secrets["swim_to_booty_bay"] then
+        ns.Data.Secrets["swim_to_booty_bay"].steps = ns.Data.SwimToBootyBaySteps
     end
 end
 

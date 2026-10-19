@@ -1382,14 +1382,14 @@ function RaidPrep:Build(parent)
     containerFrame.scroll = scroll
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(495, 10)
+    content:SetSize(730, 10)
     scroll:SetScrollChild(content)
     containerFrame.content = content
 
     -- Crear 24 marcos de tarjetas de 38px
     for i = 1, 24 do
         local row = CreateFrame("Button", nil, content, "BackdropTemplate")
-        row:SetSize(495, 38)
+        row:SetSize(730, 38)
         row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -((i - 1) * 40))
         row:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -1663,13 +1663,13 @@ function RaidPrep:Build(parent)
     containerFrame.campingScroll = campingScroll
 
     local campingContent = CreateFrame("Frame", nil, campingScroll)
-    campingContent:SetSize(495, 10)
+    campingContent:SetSize(730, 10)
     campingScroll:SetScrollChild(campingContent)
     containerFrame.campingContent = campingContent
 
     for i = 1, 20 do
         local row = CreateFrame("Button", nil, campingContent, "BackdropTemplate")
-        row:SetSize(495, 38)
+        row:SetSize(730, 38)
         row:SetPoint("TOPLEFT", campingContent, "TOPLEFT", 0, -((i - 1) * 40))
         row:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -1824,13 +1824,13 @@ function RaidPrep:Build(parent)
     containerFrame.auditScroll = auditScroll
 
     local auditContent = CreateFrame("Frame", nil, auditScroll)
-    auditContent:SetSize(495, 10)
+    auditContent:SetSize(730, 10)
     auditScroll:SetScrollChild(auditContent)
     containerFrame.auditContent = auditContent
 
     for i = 1, 20 do
         local aRow = CreateFrame("Frame", nil, auditContent, "BackdropTemplate")
-        aRow:SetSize(495, 34)
+        aRow:SetSize(730, 34)
         aRow:SetPoint("TOPLEFT", auditContent, "TOPLEFT", 0, -((i - 1) * 36))
         aRow:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -2278,7 +2278,7 @@ function RaidPrep:UpdateConsumables()
     -- Actualizar barra medidora (Readiness Gauge Bar)
     if containerFrame and containerFrame.gaugeFrame then
         local gf = containerFrame.gaugeFrame
-        local fillW = math.max(2, math.floor(((gf:GetWidth() > 0 and gf:GetWidth() or 495) - 2) * (readyCount / (totalCount > 0 and totalCount or 1))))
+        local fillW = math.max(2, math.floor(((gf:GetWidth() > 0 and gf:GetWidth() or 730) - 2) * (readyCount / (totalCount > 0 and totalCount or 1))))
         gf.fill:SetWidth(fillW)
         if pct >= 80 then
             gf.fill:SetVertexColor(unpack(PREP_COLORS.readyGreen))

@@ -15,6 +15,7 @@ local selectedSecretKey = "sleeping_bag"
 local selectedFarmingKey = nil
 local selectedFarmingProfKey = nil
 local selectedFarmingBracket = "auto"
+local activeTrainerWaypoint = nil
 local selectedFarmingItemType = nil
 local selectedFarmingItemData = nil
 local selectedMember = nil
@@ -43,9 +44,55 @@ for idx, tab in ipairs(TABS_CONFIG) do
     tabIndexByKey[tab.key] = idx
 end
 
--- Constantes de geometría HUD Principal
-local FRAME_W, FRAME_H = 540, 495
+-- Constantes de geometría HUD Principal (Estilo Widescreen GearQuest Forever 768x512)
+local FRAME_W, FRAME_H = 768, 512
 local DETAIL_H = 125
+
+-- =========================================================================
+-- FONDOS ARTÍSTICOS DE CLASE Y ESCENAS INMERSIVAS (ESTILO GEARQUEST FOREVER HD)
+-- =========================================================================
+local LOG_SCENE_TEXTURE = {
+    DRUID   = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Druid.png",
+    HUNTER  = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Hunter.png",
+    MAGE    = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Mage.png",
+    PALADIN = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Paladin.png",
+    PRIEST  = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Priest.png",
+    ROGUE   = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Rogue.png",
+    SHAMAN  = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Shaman.png",
+    WARLOCK = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Warlock.png",
+    WARRIOR = "Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Warrior.png",
+}
+
+local LOG_SCENE_SIZE = {
+    DRUID   = { 1024, 572 },
+    HUNTER  = { 1024, 572 },
+    MAGE    = { 1024, 572 },
+    PALADIN = { 1024, 572 },
+    PRIEST  = { 1024, 572 },
+    ROGUE   = { 1024, 559 },
+    SHAMAN  = { 1024, 512 },
+    WARLOCK = { 1024, 572 },
+    WARRIOR = { 1024, 572 },
+}
+
+local function ApplyClassSceneCrop(tex, frame, classFile)
+    local size = classFile and LOG_SCENE_SIZE[classFile]
+    local viewW = (frame:GetWidth() or 0) - 4
+    local viewH = (frame:GetHeight() or 0) - 4
+    if not size or viewW <= 1 or viewH <= 1 then
+        tex:SetTexCoord(0, 1, 0, 1)
+        return
+    end
+    local viewAspect = viewW / viewH
+    local texAspect = size[1] / size[2]
+    if viewAspect < texAspect then
+        local pad = (1 - (viewAspect / texAspect)) * 0.5
+        tex:SetTexCoord(pad, 1 - pad, 0, 1)
+    else
+        local pad = (1 - (texAspect / viewAspect)) * 0.5
+        tex:SetTexCoord(0, 1, pad, 1 - pad)
+    end
+end
 
 -- =========================================================================
 -- FUNCIONES AUXILIARES: ACCESO SEGURO A OBJETOS (PREVENCIÓN DE CRASH 1.15.5+)
@@ -336,6 +383,20 @@ function MainUI:Init()
     listBox:SetPoint("BOTTOMRIGHT", -6, 34 + DETAIL_H + 4)
     f.listBox = listBox
 
+    -- Fondo Artístico Inmersivo por Clase (Estilo GearQuest Forever HD)
+    local classArtScene = listBox:CreateTexture(nil, "BACKGROUND", nil, -2)
+    classArtScene:SetPoint("TOPLEFT", listBox, "TOPLEFT", 2, -2)
+    classArtScene:SetPoint("BOTTOMRIGHT", listBox, "BOTTOMRIGHT", -2, 2)
+    classArtScene:SetAlpha(0.35)
+    f.classArtScene = classArtScene
+
+    local classArtVignette = listBox:CreateTexture(nil, "BACKGROUND", nil, -1)
+    classArtVignette:SetPoint("TOPLEFT", listBox, "TOPLEFT", 2, -2)
+    classArtVignette:SetPoint("BOTTOMRIGHT", listBox, "BOTTOMRIGHT", -2, 2)
+    classArtVignette:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\ClassScenes\\GQ-LogScene-Vignette.png")
+    classArtVignette:SetAlpha(0.65)
+    f.classArtVignette = classArtVignette
+
     -- Cabeceras de Columna sobre la lista
     local colHeaderFrame = CreateFrame("Frame", nil, f)
     colHeaderFrame:SetPoint("TOPLEFT", listBox, "TOPLEFT", 2, -2)
@@ -571,8 +632,29 @@ function MainUI:Init()
 
     mainFrame = f
     MainUI.frame = f
+    self:UpdateClassArt()
     self:UpdateSubtitle()
     MainUI:SelectTab(1)
+end
+
+function MainUI:UpdateClassArt()
+    if not mainFrame or not mainFrame.classArtScene then return end
+    local _, pClass = UnitClass("player")
+    pClass = pClass or "WARRIOR"
+    local tex = LOG_SCENE_TEXTURE[pClass]
+    if tex then
+        mainFrame.classArtScene:SetTexture(tex)
+        ApplyClassSceneCrop(mainFrame.classArtScene, mainFrame.listBox, pClass)
+        mainFrame.classArtScene:Show()
+        if mainFrame.classArtVignette then
+            mainFrame.classArtVignette:Show()
+        end
+    else
+        mainFrame.classArtScene:Hide()
+        if mainFrame.classArtVignette then
+            mainFrame.classArtVignette:Hide()
+        end
+    end
 end
 
 -- =========================================================================
@@ -700,153 +782,175 @@ local currentPreloadState = nil
 local bisPreloadTimerFrame = nil
 
 function MainUI:BuildBiSList(parent)
-    -- 1. Barra de controles superiores: Selector de Modo (Radio buttons), Tier y Rama
-    local controls = CreateFrame("Frame", nil, parent)
-    controls:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, 0)
-    controls:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, 0)
-    controls:SetHeight(44)
-    parent.controls = controls
+    local LEFT_W = 360
+    local GAP = 6
 
-    -- Fila 1: Radio Buttons de Selección entre [Equipo BiS] y [Encantamientos Óptimos]
-    local okRadioG, radioGear = pcall(CreateFrame, "CheckButton", "AwakeningBiSRadioGear", controls, "UIRadioButtonTemplate")
-    if not okRadioG or not radioGear then
-        radioGear = CreateFrame("CheckButton", "AwakeningBiSRadioGear", controls, "UICheckButtonTemplate")
+    -- 1. COLUMNA IZQUIERDA: Recomendaciones de Equipo / Encantamientos
+    local leftCol = CreateFrame("Frame", nil, parent)
+    leftCol:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    leftCol:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
+    leftCol:SetWidth(LEFT_W)
+    parent.leftCol = leftCol
+
+    -- Barra superior de pestañas/tabuladores estilo GearQuest [ Active ][ Completed ][ Removed ]
+    local tabContainer = CreateFrame("Frame", nil, leftCol)
+    tabContainer:SetPoint("TOPLEFT", leftCol, "TOPLEFT", 0, 0)
+    tabContainer:SetPoint("TOPRIGHT", leftCol, "TOPRIGHT", 0, 0)
+    tabContainer:SetHeight(24)
+    leftCol.tabContainer = tabContainer
+
+    local function CreateTabBtn(text, width, onClick)
+        local btn = CreateFrame("Button", nil, tabContainer, "BackdropTemplate")
+        btn:SetSize(width, 22)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 8, edgeSize = 8,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        })
+        btn:SetBackdropColor(0.08, 0.08, 0.12, 0.85)
+        btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.8)
+
+        local t = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        t:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        t:SetText(text)
+        btn.label = t
+
+        local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        hl:SetTexture("Interface\\Buttons\\UI-Listbox-Highlight")
+        hl:SetBlendMode("ADD")
+        hl:SetAlpha(0.25)
+
+        if onClick then btn:SetScript("OnClick", onClick) end
+        return btn
     end
-    radioGear:SetSize(18, 18)
-    radioGear:SetPoint("TOPLEFT", controls, "TOPLEFT", 4, -1)
-    radioGear:SetChecked(selectedBiSMode ~= "enchants")
-    parent.radioGear = radioGear
 
-    local radioGearText = radioGear:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    radioGearText:SetPoint("LEFT", radioGear, "RIGHT", 4, 1)
-    radioGearText:SetText(selectedBiSMode == "gear" and "|cFFFFD100Equipo BiS|r" or "|cFFFFFFFFEquipo BiS|r")
-    radioGear.text = radioGearText
-
-    local radioGearHit = CreateFrame("Button", nil, controls)
-    radioGearHit:SetPoint("TOPLEFT", radioGear, "TOPLEFT", 0, 0)
-    radioGearHit:SetPoint("BOTTOMRIGHT", radioGearText, "BOTTOMRIGHT", 6, 0)
-    radioGearHit:SetScript("OnClick", function()
+    -- Tab 1: [ ⚔️ Equipo BiS ]
+    local tabGear = CreateTabBtn("|cFFFFD100Equipo BiS|r", 118, function()
         MainUI:SetBiSMode("gear")
     end)
-    radioGear:SetScript("OnClick", function()
-        MainUI:SetBiSMode("gear")
-    end)
-    radioGearHit:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-        GameTooltip:AddLine("Equipo BiS (Recomendado)", 1, 0.82, 0)
-        GameTooltip:AddLine("Muestra el mejor equipamiento (armadura, armas, anillos y abalorios) disponible para tu clase y nivel actual.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    radioGearHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    tabGear:SetPoint("TOPLEFT", tabContainer, "TOPLEFT", 0, 0)
+    parent.tabGear = tabGear
 
-    local okRadioE, radioEnchants = pcall(CreateFrame, "CheckButton", "AwakeningBiSRadioEnchants", controls, "UIRadioButtonTemplate")
-    if not okRadioE or not radioEnchants then
-        radioEnchants = CreateFrame("CheckButton", "AwakeningBiSRadioEnchants", controls, "UICheckButtonTemplate")
-    end
-    radioEnchants:SetSize(18, 18)
-    radioEnchants:SetPoint("LEFT", radioGearText, "RIGHT", 24, 0)
-    radioEnchants:SetChecked(selectedBiSMode == "enchants")
-    parent.radioEnchants = radioEnchants
-
-    local radioEnchantsText = radioEnchants:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    radioEnchantsText:SetPoint("LEFT", radioEnchants, "RIGHT", 4, 1)
-    radioEnchantsText:SetText(selectedBiSMode == "enchants" and "|cFFFFD100Encantamientos Óptimos|r" or "|cFFFFFFFFEncantamientos Óptimos|r")
-    radioEnchants.text = radioEnchantsText
-
-    local radioEnchantsHit = CreateFrame("Button", nil, controls)
-    radioEnchantsHit:SetPoint("TOPLEFT", radioEnchants, "TOPLEFT", 0, 0)
-    radioEnchantsHit:SetPoint("BOTTOMRIGHT", radioEnchantsText, "BOTTOMRIGHT", 6, 0)
-    radioEnchantsHit:SetScript("OnClick", function()
+    -- Tab 2: [ ✨ Encantamientos ]
+    local tabEnchants = CreateTabBtn("Encantamientos", 124, function()
         MainUI:SetBiSMode("enchants")
     end)
-    radioEnchants:SetScript("OnClick", function()
-        MainUI:SetBiSMode("enchants")
+    tabEnchants:SetPoint("LEFT", tabGear, "RIGHT", 2, 0)
+    parent.tabEnchants = tabEnchants
+
+    -- Tab 3: [ ⚙️ GearQuest ]
+    local tabGQ = CreateTabBtn("GearQuest", 114, function(selfBtn, mouseBtn)
+        MainUI:HandleGearQuestClick(selfBtn, mouseBtn)
     end)
-    radioEnchantsHit:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-        GameTooltip:AddLine("Encantamientos Óptimos (Fase 1 / Pre-Raid)", 1, 0.82, 0)
-        GameTooltip:AddLine("Muestra los mejores encantamientos, arcanos y mejoras de ingeniería para cada ranura de tu rol y especialización.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    radioEnchantsHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    tabGQ:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    tabGQ:SetPoint("LEFT", tabEnchants, "RIGHT", 2, 0)
+    parent.tabGQ = tabGQ
+    parent.gqBtn = tabGQ
 
-    local modeBadge = controls:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    modeBadge:SetPoint("RIGHT", controls, "RIGHT", -4, -1)
-    modeBadge:SetText(selectedBiSMode == "enchants" and "|cFF00FFCCModo: Encantamientos|r" or "|cFF888888Modo: Equipo|r")
-    parent.modeBadge = modeBadge
+    local gqIcon = tabGQ:CreateTexture(nil, "OVERLAY")
+    gqIcon:SetSize(14, 14)
+    gqIcon:SetPoint("LEFT", tabGQ, "LEFT", 4, 0)
+    gqIcon:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\GearQuest-Portrait.png")
+    tabGQ.icon = gqIcon
+    tabGQ.label:SetPoint("CENTER", tabGQ, "CENTER", 8, 0)
 
-    -- Fila 2: Botones de Nivel/Tier y Rama/Especialización
-    local tierBtn = CreateBlizzButton(controls, "Nivel: Auto", function()
-        MainUI:CycleBiSBracket()
-    end)
-    tierBtn:SetPoint("TOPLEFT", controls, "TOPLEFT", 0, -22)
-    tierBtn:SetWidth(218)
-    tierBtn:SetHeight(20)
-    parent.tierBtn = tierBtn
-
-    local tierArrow = tierBtn:CreateTexture(nil, "OVERLAY")
-    tierArrow:SetSize(10, 10)
-    tierArrow:SetPoint("RIGHT", tierBtn, "RIGHT", -8, 0)
-    tierArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
-    tierBtn.arrow = tierArrow
-
-    tierBtn:SetScript("OnEnter", function(selfBtn)
+    tabGQ:SetScript("OnEnter", function(selfBtn)
         GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
-        if selectedBiSMode == "enchants" then
-            GameTooltip:AddLine("Fase de Encantamientos", 1, 0.82, 0)
-            GameTooltip:AddLine("Fase 1 / Pre-Raid (Nivel 60). Los encantamientos óptimos de Classic para prepararte para bandas.", 1, 1, 1, true)
+        GameTooltip:ClearLines()
+        local isGQLoaded = (_G.GearQuest ~= nil) or (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GearQuestForever")) or (IsAddOnLoaded and IsAddOnLoaded("GearQuestForever"))
+        if isGQLoaded then
+            GameTooltip:AddDoubleLine("GearQuest Forever", "|cFF00FF00Activo|r", 1, 0.82, 0)
+            GameTooltip:AddLine("Sinergia de cacería y mejoras tácticas durante el leveleo (1-59).", 1, 1, 1, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cFF00FFCCClic Izquierdo:|r Abrir el registro general de mejoras (/gq log).", 0.2, 1, 0.4, true)
+            if selectedBiSSlot then
+                GameTooltip:AddLine(string.format("|cFFFFD100Clic Derecho:|r Ver mejoras de leveleo para ranura |cFFFFFFFF%s|r.", selectedBiSSlot), 1, 0.82, 0, true)
+            end
         else
-            GameTooltip:AddLine("Nivel / Tier de Equipo", 1, 0.82, 0)
-            GameTooltip:AddLine("Clic para alternar el rango de nivel o tier de mazmorras/raids.", 1, 1, 1, true)
+            GameTooltip:AddDoubleLine("GearQuest Forever", "|cFFFF3333No detectado|r", 1, 0.82, 0)
+            GameTooltip:AddLine("Addon complementario recomendado para optimizar el equipo nivel a nivel mediante misiones y cacerías mientras subes al 60.", 0.9, 0.9, 0.9, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cFF00FFCCClic:|r Ver detalles y comando de recomendación en el chat.", 0.2, 1, 0.4, true)
         end
         GameTooltip:Show()
     end)
-    tierBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    tabGQ:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    local specBtn = CreateBlizzButton(controls, "Rama: ...", function(selfBtn, mouseBtn)
+    -- Fila 2 de Controles: Nivel Dinámico del Jugador y Selector de Especialización (estilo GearQuest Forever)
+    local ctrlRow = CreateFrame("Frame", nil, leftCol)
+    ctrlRow:SetPoint("TOPLEFT", tabContainer, "BOTTOMLEFT", 0, -3)
+    ctrlRow:SetPoint("TOPRIGHT", tabContainer, "BOTTOMRIGHT", 0, -3)
+    ctrlRow:SetHeight(22)
+    leftCol.ctrlRow = ctrlRow
+
+    -- Indicador de Nivel Dinámico (sin botones estáticos de rangos)
+    local levelBadge = ctrlRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    levelBadge:SetPoint("LEFT", ctrlRow, "LEFT", 4, 0)
+    levelBadge:SetText(string.format("|cFFFFD100Nivel %d|r · |cFF00FFCCEquipo Dinámico|r", UnitLevel("player") or 1))
+    parent.levelBadge = levelBadge
+
+    -- Selector de Especialización con Icono nativo (estilo GearQuest Forever, Protection [Escudo] [v])
+    local specBtn = CreateBlizzButton(ctrlRow, "Especialización", function(selfBtn, mouseBtn)
         MainUI:CycleBiSSpec(mouseBtn == "RightButton")
     end)
     specBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    specBtn:SetPoint("LEFT", tierBtn, "RIGHT", 4, 0)
-    specBtn:SetWidth(218)
-    specBtn:SetHeight(20)
+    specBtn:SetPoint("RIGHT", ctrlRow, "RIGHT", 0, 0)
+    specBtn:SetWidth(182)
+    specBtn:SetHeight(22)
     parent.specBtn = specBtn
 
     local specArrow = specBtn:CreateTexture(nil, "OVERLAY")
     specArrow:SetSize(10, 10)
-    specArrow:SetPoint("RIGHT", specBtn, "RIGHT", -8, 0)
+    specArrow:SetPoint("RIGHT", specBtn, "RIGHT", -6, 0)
     specArrow:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Icons\\arrow_down.tga")
     specBtn.arrow = specArrow
 
+    local specIcon = specBtn:CreateTexture(nil, "ARTWORK")
+    specIcon:SetSize(16, 16)
+    specIcon:SetPoint("RIGHT", specArrow, "LEFT", -4, 0)
+    specBtn.specIcon = specIcon
+
     specBtn:SetScript("OnEnter", function(selfBtn)
         GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
-        if selectedBiSMode == "enchants" then
-            GameTooltip:AddLine("Especialización de Encantamientos", 1, 0.82, 0)
-            GameTooltip:AddLine("|cFF00FFCCClic Izquierdo:|r Alternar entre ramas de tu clase actual.", 1, 1, 1, true)
-            GameTooltip:AddLine("|cFFFFFFFFClic Derecho:|r Explorar ramas de todas las demás clases.", 0.8, 0.8, 0.8, true)
-        else
-            GameTooltip:AddLine("Especialización de Equipo", 1, 0.82, 0)
-            GameTooltip:AddLine("Clic para alternar entre las ramas de talento de tu clase.", 1, 1, 1, true)
-        end
+        local _, pClass = UnitClass("player")
+        local actSpec = ns.DetectPlayerActiveSpec and ns.DetectPlayerActiveSpec(pClass)
+        GameTooltip:AddDoubleLine("Especialización de Clase", (actSpec and actSpec:upper() == (selectedBiSSpec or ""):upper()) and "|cFF00FF00(Tu Spec Activa)|r" or "|cFFFFD100(Manual)|r", 1, 0.82, 0)
+        GameTooltip:AddLine("Especialización seleccionada para mostrar el conjunto de equipo recomendado.", 1, 1, 1, true)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cFF00FFCCClic Izquierdo:|r Alternar a la siguiente especialización.", 0.2, 1, 0.4, true)
+        GameTooltip:AddLine("|cFFFFFFFFClic Derecho:|r Alternar a la especialización anterior.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
     specBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    -- 2. Scroll de ranuras BiS (17 ranuras estándar de equipo)
-    local scroll = CreateFrame("ScrollFrame", "AwakeningBiSScroll", parent, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -46)
-    scroll:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -20, 2)
+    -- Cabeceras de Columna sobre la lista izquierda
+    local listHeader = CreateFrame("Frame", nil, leftCol)
+    listHeader:SetPoint("TOPLEFT", ctrlRow, "BOTTOMLEFT", 0, -4)
+    listHeader:SetPoint("TOPRIGHT", ctrlRow, "BOTTOMRIGHT", 0, -4)
+    listHeader:SetHeight(20)
+    leftCol.listHeader = listHeader
+
+    CreateColumnHeader(listHeader, 1, "Ranura", 64, 0)
+    CreateColumnHeader(listHeader, 2, "Recomendación BiS", 206, 65)
+    CreateColumnHeader(listHeader, 3, "Estado", 88, 272)
+
+    -- Scroll de ranuras BiS (17 ranuras)
+    local scroll = CreateFrame("ScrollFrame", "AwakeningBiSScroll", leftCol, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", listHeader, "BOTTOMLEFT", 0, -2)
+    scroll:SetPoint("BOTTOMRIGHT", leftCol, "BOTTOMRIGHT", -16, 2)
     parent.scroll = scroll
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(440, 10)
+    content:SetSize(342, 10)
     scroll:SetScrollChild(content)
     parent.content = content
 
     local yOffset = 0
     for idx, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
         local row = CreateFrame("Button", nil, content, "BackdropTemplate")
-        row:SetSize(440, 20)
+        row:SetSize(342, 20)
         row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
 
         -- Resaltado hover estilo Olympus
@@ -859,14 +963,14 @@ function MainUI:BuildBiSList(parent)
         -- Resaltado de selección activa
         local sel = row:CreateTexture(nil, "BORDER")
         sel:SetAllPoints()
-        sel:SetColorTexture(1, 0.82, 0, 0.15)
+        sel:SetColorTexture(1, 0.82, 0, 0.18)
         sel:Hide()
         row.selection = sel
 
         -- Columna 1: Ranura
         local slotLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         slotLabel:SetPoint("LEFT", row, "LEFT", 4, 0)
-        slotLabel:SetPoint("RIGHT", row, "LEFT", 78, 0)
+        slotLabel:SetPoint("RIGHT", row, "LEFT", 62, 0)
         slotLabel:SetJustifyH("LEFT")
         slotLabel:SetWordWrap(false)
         slotLabel:SetText(slotInfo.name)
@@ -875,13 +979,13 @@ function MainUI:BuildBiSList(parent)
         -- Columna 2: Icono + Objeto BiS / Encantamiento
         local icon = row:CreateTexture(nil, "ARTWORK")
         icon:SetSize(16, 16)
-        icon:SetPoint("LEFT", row, "LEFT", 82, 0)
+        icon:SetPoint("LEFT", row, "LEFT", 66, 0)
         icon:SetTexture("Interface\\Icons\\inv_misc_questionmark")
         row.icon = icon
 
         local itemLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         itemLabel:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-        itemLabel:SetPoint("RIGHT", row, "LEFT", 376, 0)
+        itemLabel:SetPoint("RIGHT", row, "LEFT", 268, 0)
         itemLabel:SetJustifyH("LEFT")
         itemLabel:SetWordWrap(false)
         itemLabel:SetText("Cargando...")
@@ -889,109 +993,12 @@ function MainUI:BuildBiSList(parent)
 
         -- Columna 3: Estado / Fuente
         local statusLabel = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        statusLabel:SetPoint("LEFT", row, "LEFT", 378, 0)
-        statusLabel:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+        statusLabel:SetPoint("LEFT", row, "LEFT", 270, 0)
+        statusLabel:SetPoint("RIGHT", row, "RIGHT", -4, 0)
         statusLabel:SetJustifyH("RIGHT")
         statusLabel:SetWordWrap(false)
         statusLabel:SetText("Falta")
         row.statusLabel = statusLabel
-
-        -- Tooltip con metadatos estilo BiSTracker / Encantamientos
-        row:SetScript("OnEnter", function(selfRow)
-            if selectedBiSMode == "enchants" then
-                if selfRow.enchantID and selfRow.enchantID > 0 then
-                    local meta = selfRow.enchantMeta or ns.GetEnchantMetadata(selfRow.enchantID)
-                    GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
-                    GameTooltip:ClearLines()
-                    local qc = (meta.quality == 4 and "|cFFA335EE") or (meta.quality == 3 and "|cFF0070DD") or (meta.quality == 2 and "|cFF1EFF00") or "|cFFFFFFFF"
-                    GameTooltip:AddLine(qc .. (meta.name or "Encantamiento") .. "|r", 1, 1, 1)
-                    GameTooltip:AddDoubleLine("|cFFFFD100Ranura:|r " .. (selfRow.slotName or slotInfo.name), "|cFFFFD100Efecto Óptimo:|r |cFF00FF00" .. meta.effect .. "|r")
-                    GameTooltip:AddDoubleLine("|cFFFFD100Tipo de Mejora:|r " .. meta.type, "|cFFFFD100Fase:|r Pre-Raid (Nv. 60)")
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddDoubleLine("|cFFFFD100Fuente / Procedencia:|r", meta.source, 1, 0.82, 0, 1, 1, 1, true)
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cFFFFD100Reactivos / Materiales necesarios:|r", 1, 0.82, 0)
-                    GameTooltip:AddLine(meta.materials, 0.8, 0.9, 1, true)
-                    if meta.desc then
-                        GameTooltip:AddLine(" ")
-                        GameTooltip:AddLine(meta.desc, 0.8, 0.8, 0.8, true)
-                    end
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cFF00FFCCClick:|r Ver detalles completos en el panel inferior.", 0.6, 0.6, 0.6)
-                    GameTooltip:Show()
-                else
-                    GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
-                    GameTooltip:ClearLines()
-                    GameTooltip:AddLine("|cFFFFD100" .. (selfRow.slotName or slotInfo.name) .. "|r", 1, 0.82, 0)
-                    if selectedBiSBracket == "1-14" then
-                        GameTooltip:AddLine("|cFFFF5555No se recomienda encantar en Nivel 1-14|r", 1, 0.3, 0.3)
-                        GameTooltip:AddLine("|cFFCCCCCCDebido a la baja calidad del equipo y a su rápida rotación en estos niveles tempranos, no se recomienda invertir oro en encantamientos. Ahorra para habilidades de clase e inicia los encantamientos a partir de Nivel 15-25.|r", 1, 1, 1, true)
-                        GameTooltip:AddLine(" ")
-                        GameTooltip:AddLine("|cFF00FFCCClick:|r Ver información en el panel inferior.", 0.6, 0.6, 0.6)
-                    else
-                        GameTooltip:AddLine("|cFF888888En WoW Classic original no existen encantamientos para esta ranura. Los encantamientos para anillos y ranuras menores se introdujeron en expansiones posteriores (TBC/WotLK).|r", 1, 1, 1, true)
-                    end
-                    GameTooltip:Show()
-                end
-                return
-            end
-
-            if not selfRow.itemID or selfRow.itemID == 0 then
-                if selectedBiSBracket == "1-14" then
-                    GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
-                    GameTooltip:ClearLines()
-                    GameTooltip:AddLine("|cFFFFD100" .. (selfRow.slotName or slotInfo.name) .. "|r", 1, 0.82, 0)
-                    GameTooltip:AddLine("|cFF888888Ranura no disponible en Nivel 1-14.|r", 1, 0.82, 0)
-                    GameTooltip:AddLine("|cFFCCCCCCEn WoW Classic no hay piezas para esta ranura en niveles 1-14. Se desbloquean a partir del nivel 15-25.|r", 1, 1, 1, true)
-                    GameTooltip:Show()
-                end
-                return
-            end
-            GameTooltip:SetOwner(selfRow, "ANCHOR_RIGHT")
-            if selfRow.itemLink then
-                GameTooltip:SetHyperlink(selfRow.itemLink)
-            else
-                GameTooltip:SetItemByID(selfRow.itemID)
-            end
-
-            local meta = ns.GetBiSItemMetadata(selfRow.itemID)
-            if meta then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddDoubleLine("|cFFFFD100Ranura:|r " .. slotInfo.name, "|cFFFFD100ID:|r |cFFFFFFFF" .. selfRow.itemID .. "|r")
-                if meta.type == "Purchase" then
-                    GameTooltip:AddDoubleLine("|cFFFFD100Comerciante:|r " .. meta.source, "|cFFFFD100Zona:|r " .. meta.zone)
-                    GameTooltip:AddDoubleLine("|cFFFFD100Precio:|r " .. meta.drop, "|cFFFFD100Tipo:|r Venta")
-                else
-                    GameTooltip:AddDoubleLine("|cFFFFD100Fuente / Jefe:|r " .. meta.source, "|cFFFFD100Zona:|r " .. meta.zone)
-                    GameTooltip:AddDoubleLine("|cFFFFD100Tipo:|r " .. meta.type, "|cFFFFD100Probabilidad:|r " .. meta.drop)
-                end
-                local eq, inB = ns.GetPlayerItemStatus(selfRow.itemID)
-                local stStr = eq and "|cFF00FF00Equipado actualmente|r" or (inB and "|cFF00CCFFEn tus bolsas|r" or "|cFFFF5555Pendiente de obtener|r")
-                GameTooltip:AddDoubleLine("|cFFFFD100Estado de posesión:|r", stStr)
-
-                if ns.GetSlotUpgrade then
-                    local pClass = (UnitClassBase and UnitClassBase("player")) or select(2, UnitClass("player")) or "WARRIOR"
-                    local pctUpgrade, _, candScore, eqScore = ns.GetSlotUpgrade(slotInfo.key, selfRow.itemID, pClass, selectedBiSSpec)
-                    if pctUpgrade and pctUpgrade > 0 then
-                        GameTooltip:AddLine(" ")
-                        GameTooltip:AddDoubleLine("|cFF00FF00▲ Mejora (StatWeights):|r", string.format("|cFF00FF00+%.1f%%|r", pctUpgrade))
-                        GameTooltip:AddDoubleLine("|cFF888888Puntaje EP Sixty/Pawn:|r", string.format("%.1f vs %.1f equipado", candScore or 0, eqScore or 0))
-                    elseif eq then
-                        GameTooltip:AddDoubleLine("|cFF00FF00Puntaje BiS (Equipado):|r", string.format("%.1f EP", candScore or 0))
-                    end
-                end
-
-                if _G.AtlasLoot then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddLine("|cFF00FFCCAlt+Clic:|r Buscar este objeto en AtlasLoot Classic", 0.6, 0.8, 1)
-                end
-            end
-            GameTooltip:Show()
-        end)
-
-        row:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
 
         row:SetScript("OnClick", function(selfRow)
             if IsAltKeyDown() and ns.OpenInAtlasLoot and selfRow.itemID and selfRow.itemID > 0 then
@@ -1012,11 +1019,156 @@ function MainUI:BuildBiSList(parent)
         bisRowFrames[slotInfo.key] = row
         yOffset = yOffset - 22
     end
-
     content:SetHeight(math.max(10, -yOffset))
 
+    -- 2. COLUMNA DERECHA: Instrucciones de Cómo Conseguirlo (Estilo Pergamino GearQuest)
+    local rightCol = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    rightCol:SetPoint("TOPLEFT", leftCol, "TOPRIGHT", GAP, 0)
+    rightCol:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+    rightCol:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    rightCol:SetBackdropColor(0.02, 0.02, 0.04, 0.95)
+    parent.rightCol = rightCol
+
+    -- Fondo de pergamino de GearQuest
+    local parchment = rightCol:CreateTexture(nil, "BACKGROUND", nil, 1)
+    parchment:SetAllPoints(rightCol)
+    parchment:SetTexture("Interface\\AddOns\\AwakeningCompanion\\Media\\Textures\\GQ-Parchment.png")
+    parchment:SetAlpha(0.18)
+    rightCol.parchment = parchment
+
+    -- Header del Objeto en Columna Derecha
+    local iconBtn = CreateFrame("Button", nil, rightCol, "BackdropTemplate")
+    iconBtn:SetSize(38, 38)
+    iconBtn:SetPoint("TOPLEFT", rightCol, "TOPLEFT", 10, -10)
+    iconBtn:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 }
+    })
+    iconBtn:SetBackdropColor(0, 0, 0, 0.8)
+
+    local iconTex = iconBtn:CreateTexture(nil, "ARTWORK")
+    iconTex:SetPoint("TOPLEFT", 2, -2)
+    iconTex:SetPoint("BOTTOMRIGHT", -2, 2)
+    iconTex:SetTexture("Interface\\Icons\\inv_misc_questionmark")
+    iconBtn.icon = iconTex
+    rightCol.iconBtn = iconBtn
+
+    iconBtn:SetScript("OnEnter", function(selfBtn)
+        if selfBtn.itemID and selfBtn.itemID > 0 then
+            GameTooltip:SetOwner(selfBtn, "ANCHOR_RIGHT")
+            if selfBtn.isEnchant then
+                local meta = ns.GetEnchantMetadata(selfBtn.itemID)
+                if meta then
+                    GameTooltip:ClearLines()
+                    GameTooltip:AddLine(meta.name, 1, 0.82, 0)
+                    GameTooltip:AddLine("Efecto: " .. meta.effect, 0, 1, 0)
+                    GameTooltip:AddLine("Fuente: " .. meta.source, 1, 1, 1, true)
+                    GameTooltip:AddLine("Reactivos: " .. meta.materials, 0.8, 0.9, 1, true)
+                    GameTooltip:Show()
+                end
+            else
+                if selfBtn.itemLink then
+                    GameTooltip:SetHyperlink(selfBtn.itemLink)
+                else
+                    GameTooltip:SetItemByID(selfBtn.itemID)
+                end
+                GameTooltip:Show()
+            end
+        end
+    end)
+    iconBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local itemTitle = rightCol:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    itemTitle:SetPoint("TOPLEFT", iconBtn, "TOPRIGHT", 10, 0)
+    itemTitle:SetPoint("RIGHT", rightCol, "RIGHT", -10, 0)
+    itemTitle:SetJustifyH("LEFT")
+    itemTitle:SetWordWrap(false)
+    itemTitle:SetText("|cFFFFD100Selecciona un objeto|r")
+    rightCol.itemTitle = itemTitle
+
+    local itemSubtitle = rightCol:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    itemSubtitle:SetPoint("TOPLEFT", itemTitle, "BOTTOMLEFT", 0, -3)
+    itemSubtitle:SetPoint("RIGHT", rightCol, "RIGHT", -10, 0)
+    itemSubtitle:SetJustifyH("LEFT")
+    itemSubtitle:SetWordWrap(false)
+    itemSubtitle:SetText("Haz clic en una ranura de la izquierda para ver cómo conseguirlo.")
+    rightCol.itemSubtitle = itemSubtitle
+
+    local sep = rightCol:CreateTexture(nil, "ARTWORK")
+    sep:SetHeight(2)
+    sep:SetPoint("TOPLEFT", iconBtn, "BOTTOMLEFT", 0, -8)
+    sep:SetPoint("RIGHT", rightCol, "RIGHT", -10, 0)
+    sep:SetColorTexture(0.3, 0.3, 0.35, 0.6)
+    rightCol.sep = sep
+
+    -- ScrollFrame de Instrucciones
+    local instScroll = CreateFrame("ScrollFrame", "AwakeningBiSInstScroll", rightCol, "UIPanelScrollFrameTemplate")
+    instScroll:SetPoint("TOPLEFT", sep, "BOTTOMLEFT", 0, -6)
+    instScroll:SetPoint("BOTTOMRIGHT", rightCol, "BOTTOMRIGHT", -22, 36)
+    rightCol.instScroll = instScroll
+
+    local instChild = CreateFrame("Frame", nil, instScroll)
+    instChild:SetSize(350, 10)
+    instScroll:SetScrollChild(instChild)
+    rightCol.instChild = instChild
+
+    local instText = instChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    instText:SetPoint("TOPLEFT", instChild, "TOPLEFT", 4, 0)
+    instText:SetPoint("RIGHT", instChild, "RIGHT", -4, 0)
+    instText:SetJustifyH("LEFT")
+    instText:SetJustifyV("TOP")
+    instText:SetSpacing(3)
+    instText:SetText("")
+    rightCol.instText = instText
+
+    -- Barra de Acciones al pie de la columna derecha (estilo GearQuest [ Track ] [ Show on map ])
+    local btnTomTom = CreateBlizzButton(rightCol, "Marcar en Mapa / TomTom", function()
+        MainUI:SetBiSWaypoint()
+    end)
+    btnTomTom:SetPoint("BOTTOMLEFT", rightCol, "BOTTOMLEFT", 8, 8)
+    btnTomTom:SetWidth(182)
+    btnTomTom:SetHeight(22)
+    rightCol.btnTomTom = btnTomTom
+
+    local btnHUD = CreateBlizzButton(rightCol, "Iniciar Ruta HUD", function()
+        local rFrame = bisRowFrames[selectedBiSSlot or "Head"]
+        local itemID = rFrame and rFrame.itemID
+        if itemID and itemID > 0 then
+            local meta = ns.GetBiSItemMetadata(itemID)
+            if meta and meta.zone and ns.GuideHUD and ns.GuideHUD.StartRoute then
+                ns.GuideHUD:StartRoute({
+                    id = "bis_" .. itemID,
+                    title = "BiS: " .. (meta.name or "Objeto"),
+                    steps = {
+                        {
+                            title = meta.source or meta.zone,
+                            desc = string.format("Consigue %s (%s, %s)", meta.name or "objeto", meta.zone or "", meta.drop or ""),
+                            zoneName = meta.zone or "Azeroth",
+                        }
+                    }
+                })
+                ns.Print(string.format("Ruta iniciada en HUD hacia |cFFFFD100%s|r (|cFF00FFCC%s|r).", meta.name or "Objeto", meta.zone or "Azeroth"))
+            else
+                MainUI:SetBiSWaypoint()
+            end
+        else
+            MainUI:SetBiSWaypoint()
+        end
+    end)
+    btnHUD:SetPoint("LEFT", btnTomTom, "RIGHT", 4, 0)
+    btnHUD:SetPoint("RIGHT", rightCol, "RIGHT", -8, 8)
+    btnHUD:SetHeight(22)
+    rightCol.btnHUD = btnHUD
+
     -- 3. Overlay de carga y precarga asíncrona de objetos BiS
-    local loadingOverlay = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    local loadingOverlay = CreateFrame("Frame", nil, leftCol, "BackdropTemplate")
     loadingOverlay:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
     loadingOverlay:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 18, 0)
     loadingOverlay:SetFrameLevel(scroll:GetFrameLevel() + 25)
@@ -1029,7 +1181,6 @@ function MainUI:BuildBiSList(parent)
     loadingOverlay:SetBackdropColor(0.04, 0.06, 0.09, 0.94)
     loadingOverlay:SetBackdropBorderColor(0.0, 0.8, 0.7, 0.7)
 
-    -- Spinner giratorio
     local spinner = loadingOverlay:CreateTexture(nil, "ARTWORK")
     spinner:SetSize(28, 28)
     spinner:SetPoint("CENTER", loadingOverlay, "CENTER", 0, 26)
@@ -1044,21 +1195,18 @@ function MainUI:BuildBiSList(parent)
         end
     end)
 
-    -- Título de carga
     local loadTitle = loadingOverlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     loadTitle:SetPoint("TOP", spinner, "BOTTOM", 0, -8)
-    loadTitle:SetText("|cFFFFD100Analizando equipamiento y base de datos...|r")
+    loadTitle:SetText("|cFFFFD100Analizando equipamiento...|r")
     loadingOverlay.title = loadTitle
 
-    -- Subtítulo / estado
     local loadStatus = loadingOverlay:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     loadStatus:SetPoint("TOP", loadTitle, "BOTTOM", 0, -4)
     loadStatus:SetText("|cFF00FFCCCargando objetos de la base de datos...|r")
     loadingOverlay.status = loadStatus
 
-    -- Barra de progreso
     local progressBar = CreateFrame("StatusBar", nil, loadingOverlay, "BackdropTemplate")
-    progressBar:SetSize(260, 10)
+    progressBar:SetSize(220, 10)
     progressBar:SetPoint("TOP", loadStatus, "BOTTOM", 0, -8)
     progressBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     progressBar:SetStatusBarColor(0.0, 0.9, 0.8, 1)
@@ -1086,31 +1234,28 @@ function MainUI:SetBiSMode(mode)
     selectedBiSMode = mode or "gear"
     local view = viewsByKey["bis"] or views[tabIndexByKey["bis"] or 2]
     if view then
-        if view.radioGear then
-            view.radioGear:SetChecked(selectedBiSMode == "gear")
-            if view.radioGear.text then
-                view.radioGear.text:SetText(selectedBiSMode == "gear" and "|cFFFFD100Equipo BiS|r" or "|cFFFFFFFFEquipo BiS|r")
-            end
-        end
-        if view.radioEnchants then
-            view.radioEnchants:SetChecked(selectedBiSMode == "enchants")
-            if view.radioEnchants.text then
-                view.radioEnchants.text:SetText(selectedBiSMode == "enchants" and "|cFFFFD100Encantamientos Óptimos|r" or "|cFFFFFFFFEncantamientos Óptimos|r")
-            end
-        end
-        if view.modeBadge then
-            if selectedBiSMode == "enchants" then
-                view.modeBadge:SetText("|cFF00FFCCModo: Encantamientos|r")
+        if view.tabGear then
+            if selectedBiSMode == "gear" then
+                view.tabGear:SetBackdropColor(0.25, 0.20, 0.05, 0.95)
+                view.tabGear:SetBackdropBorderColor(1, 0.82, 0, 1)
+                view.tabGear.label:SetText("|cFFFFD100Equipo BiS|r")
             else
-                view.modeBadge:SetText("|cFF888888Modo: Equipo|r")
+                view.tabGear:SetBackdropColor(0.08, 0.08, 0.12, 0.85)
+                view.tabGear:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.8)
+                view.tabGear.label:SetText("|cFF888888Equipo BiS|r")
             end
         end
-    end
-
-    if selectedBiSMode == "enchants" then
-        SetColumnHeaders("Ranura", 80, 0, "Encantamiento Óptimo", 295, 81, "Fuente", 142, 378, "RIGHT")
-    else
-        SetColumnHeaders("Ranura", 80, 0, "Objetos BiS", 295, 81, "Estado", 142, 378, "RIGHT")
+        if view.tabEnchants then
+            if selectedBiSMode == "enchants" then
+                view.tabEnchants:SetBackdropColor(0.04, 0.22, 0.20, 0.95)
+                view.tabEnchants:SetBackdropBorderColor(0, 1, 0.8, 1)
+                view.tabEnchants.label:SetText("|cFF00FFCCEncantamientos|r")
+            else
+                view.tabEnchants:SetBackdropColor(0.08, 0.08, 0.12, 0.85)
+                view.tabEnchants:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.8)
+                view.tabEnchants.label:SetText("|cFF888888Encantamientos|r")
+            end
+        end
     end
 
     self:UpdateBiSView()
@@ -1118,20 +1263,59 @@ function MainUI:SetBiSMode(mode)
     self:UpdateBottomButtons()
 end
 
---- Actualiza dinámicamente el subtítulo de la cabecera con la prioridad de estadísticas y caps de la clase
-function MainUI:UpdateSubtitle()
-    if not mainFrame or not mainFrame.subStatus then return end
-    local _, playerClass = UnitClass("player")
-    local spec = selectedBiSSpec
-    if not spec or spec == "" then
-        spec = ns.GetClassDefaultEnchantSpec and ns.GetClassDefaultEnchantSpec(playerClass)
-    end
-    if ns.GetSpecSubtitle then
-        mainFrame.subStatus:SetText(ns.GetSpecSubtitle(playerClass, spec))
+function MainUI:HandleGearQuestClick(btn, mouseBtn)
+    local isGQLoaded = (_G.GearQuest ~= nil) or (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GearQuestForever")) or (IsAddOnLoaded and IsAddOnLoaded("GearQuestForever"))
+    if isGQLoaded and _G.GearQuest then
+        if mouseBtn == "RightButton" and selectedBiSSlot and _G.GearQuest.Popup and _G.GearQuest.Popup.ShowForSlot then
+            _G.GearQuest.Popup:ShowForSlot(selectedBiSSlot, btn)
+        elseif _G.GearQuest.Log and _G.GearQuest.Log.Toggle then
+            _G.GearQuest.Log:Toggle()
+        else
+            if SlashCmdList["GEARQUEST"] then
+                SlashCmdList["GEARQUEST"]("log")
+            end
+        end
     else
-        mainFrame.subStatus:SetText("WoW Classic Forever · Servidor Activo")
+        DEFAULT_CHAT_FRAME:AddMessage("|cFFFFD100[Awakening]|r Para cazar mejoras misión a misión durante el leveleo (1-59), te sugerimos instalar el addon |cFF00FFCCGearQuest Forever|r (/gq).")
     end
 end
+
+--- Actualiza dinámicamente el subtítulo de la cabecera según la pestaña activa
+function MainUI:UpdateSubtitle()
+    if not mainFrame or not mainFrame.subStatus then return end
+
+    local currentKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key or "bis"
+
+    if currentKey == "bis" then
+        if mainFrame.subStatusBtn then mainFrame.subStatusBtn:Show() end
+        local _, playerClass = UnitClass("player")
+        local spec = selectedBiSSpec
+        if not spec or spec == "" then
+            spec = ns.GetClassDefaultEnchantSpec and ns.GetClassDefaultEnchantSpec(playerClass)
+        end
+        if ns.GetSpecSubtitle then
+            mainFrame.subStatus:SetText(ns.GetSpecSubtitle(playerClass, spec))
+        else
+            mainFrame.subStatus:SetText("WoW Classic Forever · Servidor Activo")
+        end
+    else
+        if mainFrame.subStatusBtn then mainFrame.subStatusBtn:Hide() end
+        if currentKey == "secrets" then
+            mainFrame.subStatus:SetText("|cFF88AAFFRutas de exploración, cofres ocultos, mazmorras y secretos del mundo clásico|r")
+        elseif currentKey == "farming" then
+            mainFrame.subStatus:SetText("|cFF88AAFFRutas optimizadas de recolección y recetas clave para subir profesiones|r")
+        elseif currentKey == "prep" then
+            mainFrame.subStatus:SetText("|cFF88AAFFAuditoría de consumibles, buffs y preparación de grupo en tiempo real|r")
+        elseif currentKey == "travel" then
+            mainFrame.subStatus:SetText("|cFF88AAFFCálculo de rutas óptimas con rutas de vuelo, barcos, zepelines y tranvía|r")
+        elseif currentKey == "guild" then
+            mainFrame.subStatus:SetText("|cFF88AAFFCenso y coordinación interna de miembros conectados de <Awakening>|r")
+        else
+            mainFrame.subStatus:SetText("|cFF88AAFFAwakening Companion · Asistente Oficial WoW Forever|r")
+        end
+    end
+end
+
 
 function MainUI:UpdateBiSView()
     local view = viewsByKey["bis"] or views[tabIndexByKey["bis"] or 2]
@@ -1139,6 +1323,16 @@ function MainUI:UpdateBiSView()
 
     local _, playerClass = UnitClass("player")
     playerClass = playerClass or "WARRIOR"
+
+    -- Estado visual del botón de sinergia GearQuest Forever
+    if view.gqBtn then
+        local isGQLoaded = (_G.GearQuest ~= nil) or (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GearQuestForever")) or (IsAddOnLoaded and IsAddOnLoaded("GearQuestForever"))
+        if isGQLoaded then
+            view.gqBtn:SetText("   |cFF00FFCCGearQuest|r")
+        else
+            view.gqBtn:SetText("   |cFF888888GearQuest|r")
+        end
+    end
 
     -- ---------------------------------------------------------------------
     -- MODO ENCANTAMIENTOS Y REFUERZOS ÓPTIMOS (WoW Classic)
@@ -1174,6 +1368,12 @@ function MainUI:UpdateBiSView()
         end
         if view.specBtn then
             view.specBtn:SetText(specDisplayName:gsub("%s*%(.-%)", ""))
+            if view.specBtn.specIcon then
+                local sInfo = ns.GetSpecDisplayInfo and ns.GetSpecDisplayInfo(playerClass, selectedBiSSpec or selectedEnchantSpec)
+                local sIcon = (sInfo and sInfo.icon) or "Interface\\Icons\\inv_misc_questionmark"
+                view.specBtn.specIcon:SetTexture(sIcon)
+                view.specBtn.specIcon:Show()
+            end
         end
 
         local playerName = UnitName("player") or "Jugador"
@@ -1268,54 +1468,49 @@ function MainUI:UpdateBiSView()
     if not classData then return end
 
     local playerLevel = UnitLevel("player") or 1
-    if not selectedBiSBracket then
-        selectedBiSBracket = ns.GetDefaultBiSBracket(playerLevel)
-    end
+
+    -- Sincronizar dinámicamente con GearQuest Forever o talentos activos del personaje SOLO si no hay una selección activa
     if not selectedBiSSpec then
-        selectedBiSSpec = classData.specs[1] and classData.specs[1].key or "fury"
-    end
-
-    -- Actualizar etiqueta de botones de selección
-    local bracketName = selectedBiSBracket
-    local bracketShort = selectedBiSBracket
-    for _, b in ipairs(classData.brackets or {}) do
-        if b.key == selectedBiSBracket then
-            bracketName = b.name
-            if b.key == "raid-p1" then
-                bracketShort = "Raid Nivel 60"
-            elseif b.key == "pre-raid" then
-                bracketShort = "Nivel 53-60"
-            elseif b.key == "1-14" then
-                bracketShort = "Nivel 1-14"
-            else
-                bracketShort = b.name:gsub("%s*%(.-%)", "")
+        if _G.GearQuest and _G.GearQuest.Spec and _G.GearQuest.Spec.GetDisplaySpec then
+            local gqSpec = _G.GearQuest.Spec:GetDisplaySpec(playerClass)
+            if gqSpec and gqSpec ~= "" then
+                selectedBiSSpec = gqSpec:lower()
             end
-            break
+        end
+        if not selectedBiSSpec then
+            selectedBiSSpec = (ns.DetectPlayerActiveSpec and ns.DetectPlayerActiveSpec(playerClass)) or (classData.specs[1] and classData.specs[1].key) or "fury"
         end
     end
 
-    local specName = selectedBiSSpec
-    for _, s in ipairs(classData.specs or {}) do
-        if s.key == selectedBiSSpec then
-            specName = s.name
-            break
-        end
+    -- Sincronizar el filtro de mazmorras exclusivo (Dungeon Enjoyer)
+    if ns.SyncGearQuestDungeonEnjoyer then
+        ns.SyncGearQuestDungeonEnjoyer()
     end
 
-    if view.tierBtn then
-        view.tierBtn:SetText(bracketShort)
+    if view.levelBadge then
+        view.levelBadge:SetText(string.format("|cFFFFD100Nivel %d|r · |cFF00FFCCEquipo Dinámico|r", playerLevel))
     end
+
+    local specInfo = ns.GetSpecDisplayInfo and ns.GetSpecDisplayInfo(playerClass, selectedBiSSpec)
+    local specDisplayName = (specInfo and specInfo.name) or selectedBiSSpec
+    local specIconTex = (specInfo and specInfo.icon) or "Interface\\Icons\\inv_misc_questionmark"
+
     if view.specBtn then
-        view.specBtn:SetText(specName:gsub("%s*%(.-%)", ""))
+        view.specBtn:SetText(specDisplayName)
+        if view.specBtn.specIcon then
+            view.specBtn.specIcon:SetTexture(specIconTex)
+            view.specBtn.specIcon:Show()
+        end
     end
 
     -- Actualizar subtítulo dinámico con prioridad de atributos y caps de la especialización seleccionada
     self:UpdateSubtitle()
 
-    -- Nivel 1-14 o forzado inmediato: no requiere precarga pesada
-    if selectedBiSBracket == "1-14" or forceImmediate then
+    -- Si GearQuest Forever está cargado o es llamada inmediata, renderizar directamente con su base de datos dinámica
+    local isGQLoaded = (_G.GearQuest ~= nil) or (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GearQuestForever"))
+    if isGQLoaded or forceImmediate then
         if view.loadingOverlay then view.loadingOverlay:Hide() end
-        self:RenderResolvedBiS(playerClass, selectedBiSBracket, selectedBiSSpec, playerLevel)
+        self:RenderResolvedBiS(playerClass, nil, selectedBiSSpec, playerLevel)
         return
     end
 
@@ -1488,20 +1683,36 @@ function MainUI:RenderResolvedBiS(playerClass, bracketKey, specKey, playerLevel)
         end
     end
 
-    -- 1. Evaluar candidatos canónicos con IsItemEligible y seleccionar el mejor por StatWeights
+    -- 1. Evaluar candidatos canónicos (priorizando GearQuest Forever para recomendación dinámica nivel a nivel)
     local resolvedItems = {}
     local assignedUniqueItems = {}
     local validator = ns.Validator or (addon and addon.Validator) or (_G.AwakeningData and _G.AwakeningData.Validator)
     for _, slotInfo in ipairs(ns.Data.BiSSlotsOrder or {}) do
         local bestID, bestScore, bestMeta, reason
-        if validator and validator.GetBestItemForSlot then
+
+        -- Prioridad 1: Maquinaria y base de datos nivel a nivel de GearQuest Forever (Dungeon Enjoyer)
+        local gqRes = ns.GetGearQuestRecommendedItem and ns.GetGearQuestRecommendedItem(slotInfo.key, playerLevel, playerClass, specKey)
+        if gqRes and gqRes.itemID and gqRes.itemID > 0 then
+            bestID = gqRes.itemID
+            bestScore = gqRes.score
+            bestMeta = gqRes.meta
+            reason = gqRes.reason or "OK"
+        elseif bracketKey and validator and validator.GetBestItemForSlot then
+            -- Solo usar fallback estático si se especificó expresamente un bracket (nunca por defecto a pre-raid Nv. 60)
             bestID, bestScore, bestMeta, reason = validator:GetBestItemForSlot(playerClass, bracketKey, specKey, slotInfo.key, playerLevel, bracketMaxLevel, assignedUniqueItems)
-        else
-            local bracketSets = classData.sets and (classData.sets[bracketKey] or classData.sets["pre-raid"])
-            local activeSet = bracketSets and bracketSets[specKey]
-            bestID = activeSet and activeSet[slotInfo.key] or 0
-            if assignedUniqueItems[bestID] then
+        end
+
+        -- Verificación estricta: jamás recomendar un objeto que requiera nivel superior al actual del personaje
+        if bestID and bestID > 0 then
+            local reqLvl = (bestMeta and bestMeta.minLevel)
+            if not reqLvl and GetItemInfo then
+                local _, _, _, _, minL = GetItemInfo(bestID)
+                reqLvl = minL
+            end
+            if reqLvl and type(reqLvl) == "number" and reqLvl > playerLevel then
                 bestID = 0
+                bestMeta = nil
+                reason = "LEVEL_TOO_HIGH"
             end
         end
 
@@ -1687,97 +1898,155 @@ function MainUI:SelectBiSSlot(slotKey)
     end
 
     local rFrame = bisRowFrames[slotKey]
+    local view = viewsByKey["bis"] or views[tabIndexByKey["bis"] or 2]
+    local rightCol = view and view.rightCol
 
     -- ---------------------------------------------------------------------
     -- DETALLES PARA MODO ENCANTAMIENTOS
     -- ---------------------------------------------------------------------
     if selectedBiSMode == "enchants" then
         if selectedBiSBracket == "1-14" then
-            if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
-                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin Encantamientos Recomendados (Nv. 1-14)|r", rFrame and rFrame.slotName or slotKey))
-                self:ShowDetailRewards(nil)
-                mainFrame.detailText:SetText(
-                    "|cFFFFFF00En el rango de Nivel 1 a 14 no se recomienda encantar el equipo.|r\n\n" ..
-                    "• |cFFFFFFFFRápida rotación de equipo:|r Las piezas obtenidas en estos niveles iniciales se reemplazan con gran velocidad mediante misiones tempranas y botín de mundo.\n" ..
-                    "• |cFFFFFFFFPrioridad de economía:|r Se aconseja guardar el dinero para adquirir los nuevos rangos de hechizos y habilidades con tus instructores de clase.\n" ..
-                    "• |cFF00FFCCRecomendación:|r Empieza a encantar tu equipo a partir del tramo |cFFFFD100Nivel 15-25|r (con los primeros refuerzos de armadura y las mazmorras iniciales como Minas de la Muerte o Cuevas de los Lamentos)."
-                )
+            if rightCol then
+                if rightCol.iconBtn then rightCol.iconBtn:Hide() end
+                if rightCol.sep then rightCol.sep:Hide() end
+                if rightCol.btnTomTom then rightCol.btnTomTom:Hide() end
+                if rightCol.btnHUD then rightCol.btnHUD:Hide() end
+                if rightCol.itemTitle then rightCol.itemTitle:SetText(string.format("|cFFFFD100%s · Sin Encantamientos|r", rFrame and rFrame.slotName or slotKey)) end
+                if rightCol.itemSubtitle then rightCol.itemSubtitle:SetText("Rango Nivel 1-14: No recomendado para leveleo inicial") end
+                if rightCol.instText then
+                    local lines = {
+                        "|cFFFFCC00💡 RECOMENDACIÓN DE PROGRESIÓN (Nv. 1-14):|r",
+                        "• |cFFFFFFFFRotación acelerada:|r En estos primeros niveles el equipamiento se reemplaza a gran velocidad mediante misiones iniciales.",
+                        "",
+                        "• |cFFFFFFFFEconomía inicial:|r Se recomienda reservar el dinero para adquirir los nuevos rangos de habilidades con tus instructores de clase.",
+                        "",
+                        "• |cFF00FFCC¿Cuándo empezar a encantar?|r",
+                        "  A partir del tramo |cFFFFD100Nivel 15-25|r con los primeros refuerzos de armadura de Peletería y las primeras mazmorras (Minas de la Muerte, Cuevas de los Lamentos).",
+                    }
+                    rightCol.instText:SetText(table.concat(lines, "\n"))
+                    if rightCol.instChild then
+                        rightCol.instChild:SetHeight(math.max(10, rightCol.instText:GetStringHeight() + 30))
+                    end
+                end
+                if rightCol.instScroll then rightCol.instScroll:SetVerticalScroll(0) end
             end
             return
         end
 
         local enchantID = rFrame and rFrame.enchantID
         if not enchantID or enchantID == 0 then
-            if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
-                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin encantamiento en Classic|r", rFrame and rFrame.slotName or slotKey))
-                self:ShowDetailRewards(nil)
-                mainFrame.detailText:SetText(
-                    "Esta ranura de equipo no cuenta con encantamientos disponibles en WoW Classic Fase 1.\n" ..
-                    "|cFF888888(Los encantamientos de anillos y ranuras menores fueron introducidos en expansiones posteriores como TBC y WotLK).|r"
-                )
+            if rightCol then
+                if rightCol.iconBtn then rightCol.iconBtn:Hide() end
+                if rightCol.sep then rightCol.sep:Hide() end
+                if rightCol.btnTomTom then rightCol.btnTomTom:Hide() end
+                if rightCol.btnHUD then rightCol.btnHUD:Hide() end
+                if rightCol.itemTitle then rightCol.itemTitle:SetText(string.format("|cFFFFD100%s · Sin encantamiento|r", rFrame and rFrame.slotName or slotKey)) end
+                if rightCol.itemSubtitle then rightCol.itemSubtitle:SetText("Sin fórmula disponible en WoW Classic Fase 1") end
+                if rightCol.instText then
+                    rightCol.instText:SetText(
+                        "|cFFFFCC00💡 INFORMACIÓN DE SISTEMA:|r\n" ..
+                        "Esta ranura no dispone de encantamientos en WoW Classic Fase 1.\n\n" ..
+                        "|cFF888888(Los encantamientos de anillos y ranuras menores se añadieron en expansiones posteriores como TBC y WotLK).|r"
+                    )
+                    if rightCol.instChild then
+                        rightCol.instChild:SetHeight(math.max(10, rightCol.instText:GetStringHeight() + 30))
+                    end
+                end
+                if rightCol.instScroll then rightCol.instScroll:SetVerticalScroll(0) end
             end
             return
         end
 
         local meta = rFrame.enchantMeta or ns.GetEnchantMetadata(enchantID)
-        if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
+        if rightCol and meta then
             local qc = (meta.quality == 4 and "|cFFA335EE") or (meta.quality == 3 and "|cFF0070DD") or (meta.quality == 2 and "|cFF1EFF00") or "|cFFFFFFFF"
-            mainFrame.detailTitle:SetText(string.format("%s%s|r · |cFFFFD100%s|r", qc, meta.name, rFrame.slotName or slotKey))
+            if rightCol.iconBtn then
+                rightCol.iconBtn:Show()
+                rightCol.iconBtn.itemID = enchantID
+                rightCol.iconBtn.isEnchant = true
+                rightCol.iconBtn.icon:SetTexture(meta.icon or "Interface\\Icons\\spell_holy_magicalsentry")
+                rightCol.iconBtn:SetBackdropBorderColor(0, 1, 0.8, 0.9)
+            end
+            if rightCol.sep then rightCol.sep:Show() end
+            if rightCol.itemTitle then rightCol.itemTitle:SetText(qc .. meta.name .. "|r") end
+            if rightCol.itemSubtitle then
+                rightCol.itemSubtitle:SetText(string.format("Ranura: |cFFFFD100%s|r  ·  Tipo: |cFFFFFFFF%s|r", rFrame.slotName or slotKey, meta.type))
+            end
 
-            local enchantReward = {
-                {
-                    itemID = enchantID,
-                    isEnchant = true,
-                    title = qc .. meta.name .. "|r",
-                    name = qc .. meta.name .. "|r",
-                    icon = meta.icon,
-                    quality = meta.quality,
-                    desc = string.format("Efecto: %s · %s", meta.effect, meta.type),
-                    extraLines = {
-                        { text = "Fuente: " .. meta.source, r = 1, g = 0.82, b = 0, wrap = true },
-                        { text = "Reactivos: " .. meta.materials, r = 0.5, g = 0.9, b = 1, wrap = true }
-                    }
-                }
+            local lines = {
+                "|cFFFFCC00⚡ EFECTO ÓPTIMO:|r",
+                string.format("  |cFF00FF00%s|r", meta.effect),
+                "",
+                "|cFFFFCC00📍 CÓMO CONSEGUIRLO / FUENTE:|r",
+                string.format("  |cFFFFFFFF%s|r", meta.source),
+                "",
+                "|cFFFFCC00🧪 REACTIVOS Y MATERIALES NECESARIOS:|r",
+                string.format("  |cFF00FFCC%s|r", meta.materials),
+                "",
+                "|cFFFFCC00💡 NOTAS TÁCTICAS:|r",
+                string.format("  |cFFFFFFFF%s|r", meta.desc or "Encantamiento óptimo para tu especialización y rol."),
             }
-            self:ShowDetailRewards(enchantReward, "|cFFFFD100Encantamiento Óptimo:|r")
-
-            mainFrame.detailText:SetText(string.format(
-                "Efecto Óptimo: |cFF00FF00%s|r  ·  Tipo: |cFFFFFFFF%s|r\n" ..
-                "Fuente / Procedencia: |cFFFFD100%s|r\n" ..
-                "Reactivos necesarios: |cFF00FFCC%s|r\n" ..
-                "Detalle: |cFFFFFFFF%s|r",
-                meta.effect,
-                meta.type,
-                meta.source,
-                meta.materials,
-                meta.desc or "Encantamiento óptimo para Fase 1 / Pre-Raid."
-            ))
+            if rightCol.instText then
+                rightCol.instText:SetText(table.concat(lines, "\n"))
+                if rightCol.instChild then
+                    rightCol.instChild:SetHeight(math.max(10, rightCol.instText:GetStringHeight() + 30))
+                end
+            end
+            if rightCol.instScroll then rightCol.instScroll:SetVerticalScroll(0) end
+            if rightCol.btnTomTom then rightCol.btnTomTom:Hide() end
+            if rightCol.btnHUD then rightCol.btnHUD:Hide() end
         end
         return
     end
 
     -- ---------------------------------------------------------------------
-    -- DETALLES PARA MODO EQUIPO BiS
+    -- DETALLES PARA MODO EQUIPO BiS (PERGAMINO DERECHO ESTILO GEARQUEST)
     -- ---------------------------------------------------------------------
     if not rFrame or not rFrame.itemID or rFrame.itemID == 0 then
-        if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
+        if rightCol then
+            if rightCol.iconBtn then rightCol.iconBtn:Hide() end
+            if rightCol.sep then rightCol.sep:Hide() end
+            if rightCol.btnTomTom then rightCol.btnTomTom:Hide() end
+            if rightCol.btnHUD then rightCol.btnHUD:Hide() end
+
             if selectedBiSBracket == "1-14" then
-                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin objeto en Nivel 1-14|r", rFrame and rFrame.slotName or slotKey))
-                self:ShowDetailRewards(nil)
-                mainFrame.detailText:SetText(
-                    "|cFFFFFF00Ranura no disponible en Nivel 1-14.|r\n\n" ..
-                    "En WoW Classic original no existen piezas de equipo para esta ranura (Casco, Cuello, Hombreras, Anillos, Abalorios) que se puedan conseguir o equipar entre los niveles 1 y 14.\n\n" ..
-                    "|cFF88DDFFConsejo:|r Estas ranuras comenzarán a llenarse a partir del tramo |cFFFFD100Nivel 15-25|r mediante misiones de clase y las primeras mazmorras (Minas de la Muerte, Cuevas de los Lamentos, Castillo de Colmillo Oscuro)."
-                )
+                if rightCol.itemTitle then rightCol.itemTitle:SetText(string.format("|cFFFFD100%s · Sin objeto en Nivel 1-14|r", rFrame and rFrame.slotName or slotKey)) end
+                if rightCol.itemSubtitle then rightCol.itemSubtitle:SetText("Ranura no disponible en Nivel 1-14") end
+                if rightCol.instText then
+                    local emptyLines = {
+                        "|cFFFFCC00INFORMACIÓN DE PROGRESIÓN (Nv. 1-14):|r",
+                        "• En WoW Classic original, ranuras como Casco, Cuello, Hombreras, Anillos y Abalorios no tienen piezas disponibles para equipar en los niveles iniciales.",
+                        "",
+                        "• |cFF00FFCC¿Cuándo se desbloquea?|r",
+                        "  Comenzarás a llenar estas ranuras a partir del tramo |cFFFFD100Nivel 15-25|r mediante misiones de clase y las primeras mazmorras (Minas de la Muerte, Cuevas de los Lamentos, Colmillo Oscuro).",
+                        "",
+                        "• |cFFFFD100Consejo GearQuest:|r",
+                        "  Utiliza el botón superior |cFF00FFCCGearQuest|r (/gq) para cazar mejoras en misiones y enemigos mientras completas tus zonas de inicio.",
+                    }
+                    rightCol.instText:SetText(table.concat(emptyLines, "\n"))
+                    if rightCol.instChild then
+                        rightCol.instChild:SetHeight(math.max(10, rightCol.instText:GetStringHeight() + 30))
+                    end
+                end
             else
-                mainFrame.detailTitle:SetText(string.format("|cFFFFD100%s · Sin opción viable para tu clase/nivel|r", rFrame and rFrame.slotName or slotKey))
-                self:ShowDetailRewards(nil)
-                mainFrame.detailText:SetText(
-                    "|cFFFFFF00No hay objetos Best-in-Slot compatibles disponibles para esta ranura en tu nivel actual.|r\n\n" ..
-                    "• El motor de validación canónica ha evaluado los candidatos y filtró piezas incongruentes (ej. armaduras no permitidas para tu clase, ranuras incompatibles o requisitos de profesión activa no cumplidos).\n" ..
-                    "• Esta casilla se actualizará automáticamente a medida que subas de nivel o aprendas la profesión correspondiente."
-                )
+                if rightCol.itemTitle then rightCol.itemTitle:SetText(string.format("|cFFFFD100%s · Sin botín de mazmorra a este nivel|r", rFrame and rFrame.slotName or slotKey)) end
+                if rightCol.itemSubtitle then rightCol.itemSubtitle:SetText("Modo Dungeon Enjoyer: Solo piezas obtenidas en mazmorras") end
+                if rightCol.instText then
+                    local emptyLines = {
+                        "|cFFFFCC00FILTRO DE MAZMORRAS EXCLUSIVO (Dungeon Enjoyer):|r",
+                        "• Esta lista muestra únicamente piezas obtenidas de jefes, cofres, criaturas y misiones dentro de mazmorras y bandas.",
+                        "",
+                        "• Se han excluido automáticamente crafteos de profesiones, compras de vendedores, intendentes de reputación y botín de mundo exterior.",
+                        "",
+                        "• Para tu nivel actual no existe una pieza de mazmorra recomendada en esta casilla; se habilitará conforme alcances el nivel de las siguientes estancias.",
+                    }
+                    rightCol.instText:SetText(table.concat(emptyLines, "\n"))
+                    if rightCol.instChild then
+                        rightCol.instChild:SetHeight(math.max(10, rightCol.instText:GetStringHeight() + 30))
+                    end
+                end
             end
+            if rightCol.instScroll then rightCol.instScroll:SetVerticalScroll(0) end
         end
         return
     end
@@ -1786,100 +2055,194 @@ function MainUI:SelectBiSSlot(slotKey)
     local meta = ns.GetBiSItemMetadata(itemID)
     local eq, inB = ns.GetPlayerItemStatus(itemID)
     local playerLevel = UnitLevel("player") or 1
-    local statusStr = eq and "|cFF00FF00Equipado actualmente en tu personaje|r" or (inB and "|cFF00CCFFEn tus bolsas (listo para usar)|r" or "|cFFFF5555Pendiente de conseguir|r")
+    local statusBadge = eq and "|cFF00FF00[ Equipado ]|r" or (inB and "|cFF00CCFF[ En Bolsas ]|r" or "|cFFFF5555[ Pendiente ]|r")
 
     if not eq and not inB then
         if rFrame.reason == "PROFESSION_LOCKED" then
-            statusStr = "|cFFFF8800Req. Profesión Activa (ej. Ingeniería)|r"
+            statusBadge = "|cFFFF8800[ Req. Profesión ]|r"
         elseif rFrame.itemMinLevel and rFrame.itemMinLevel > playerLevel then
-            statusStr = string.format("|cFFFFAA00Pendiente de nivel (Requiere Nivel %d)|r", rFrame.itemMinLevel)
+            statusBadge = string.format("|cFFFFAA00[ Req. Nivel %d ]|r", rFrame.itemMinLevel)
         end
     end
 
-    local nameStr = rFrame.itemLink or (meta and meta.name) or ("Objeto #" .. itemID)
+    if rightCol then
+        if rightCol.iconBtn then
+            rightCol.iconBtn:Show()
+            rightCol.iconBtn.itemID = itemID
+            rightCol.iconBtn.itemLink = rFrame.itemLink
+            rightCol.iconBtn.isEnchant = false
 
-    -- Sinergia con AtlasBIStooltips / AtlasLoot Classic Forever si está cargado
-    local atlasNote = ""
-    if sliccNote and sliccNote.Items and sliccNote.Items[tostring(itemID)] then
-        local _, playerClass = UnitClass("player")
-        for uKey, pVal in pairs(sliccNote.Items[tostring(itemID)]) do
-            local rec = sliccNote.BIS and sliccNote.BIS[uKey]
-            if rec and (not rec.class or rec.class:upper() == playerClass) then
-                local specClean = (rec.spec or ""):gsub("_P%d$", "")
-                atlasNote = string.format(" · |cFF00FF00AtlasLoot: %s (Rango %s)|r", specClean ~= "" and specClean or "BiS", pVal or "1")
-                break
+            local name, link, quality, texture, reqLvl, itemType, itemSubtype = GetItemInfo(itemID)
+            texture = texture or SafeGetItemIcon(itemID) or (meta and meta.icon) or "Interface\\Icons\\inv_misc_questionmark"
+            rightCol.iconBtn.icon:SetTexture(texture)
+
+            local qColor = (ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality or (meta and meta.quality) or 1]) or { r = 1, g = 1, b = 1, hex = "|cFFFFFFFF" }
+            rightCol.iconBtn:SetBackdropBorderColor(qColor.r, qColor.g, qColor.b, 0.9)
+
+            local displayName = rFrame.itemLink or (qColor.hex .. (name or (meta and meta.name) or ("Objeto #" .. itemID)) .. "|r")
+            if rightCol.itemTitle then rightCol.itemTitle:SetText(displayName) end
+
+            local subParts = {}
+            table.insert(subParts, rFrame.slotName or slotKey)
+            if itemSubtype and itemSubtype ~= "" then
+                table.insert(subParts, itemSubtype)
+            end
+            local minL = reqLvl or (meta and meta.minLevel)
+            if minL and minL > 1 then
+                table.insert(subParts, string.format("Req. Nivel %d", minL))
+            end
+            table.insert(subParts, statusBadge)
+            if rightCol.itemSubtitle then
+                rightCol.itemSubtitle:SetText(table.concat(subParts, " · "))
             end
         end
-    end
 
-    if mainFrame and mainFrame.detailTitle and mainFrame.detailText then
-        mainFrame.detailTitle:SetText(string.format("%s · |cFFFFD100%s|r%s", nameStr, rFrame.slotName or "Ranura", atlasNote))
-        
-        -- Mostrar botón interactivo del objeto BiS en la caja de detalles
-        local bisReward = {
-            {
-                itemID = itemID,
-                name = nameStr,
-                quality = meta and meta.quality,
-                desc = meta and string.format("Fuente: %s (%s) · Probabilidad: %s", meta.source, meta.zone, meta.drop),
-                extraLines = {
-                    { text = "Estado de posesión: " .. statusStr, r = 1, g = 0.82, b = 0, wrap = false }
-                }
-            }
-        }
-        self:ShowDetailRewards(bisReward, "|cFFFFD100Objeto BiS:|r")
+        if rightCol.sep then rightCol.sep:Show() end
 
-        -- Calcular Mejora de StatWeights y formato según tipo de fuente
-        local upgradeLine = ""
+        -- Construir el cuerpo detallado de instrucciones
+        local lines = {}
+        table.insert(lines, "|cFFFFCC00CÓMO CONSEGUIRLO:|r")
+        if meta and meta.instructions and meta.instructions ~= "" then
+            table.insert(lines, string.format("  • |cFF00FFCCInstrucciones:|r |cFFFFFFFF%s|r", meta.instructions))
+        end
+        if meta and meta.type == "Purchase" or meta and meta.type == "vendor" then
+            table.insert(lines, "  • |cFFFFFFFFTipo de Obtención:|r |cFFFFFF00Compra a Comerciante|r")
+            table.insert(lines, string.format("  • |cFFFFFFFFVendedor / NPC:|r |cFFFFD100%s|r", meta.source or "Vendedor local"))
+            table.insert(lines, string.format("  • |cFFFFFFFFZona / Poblado:|r |cFF00FFCC%s|r", meta.zone or "Pueblo Inicial"))
+            table.insert(lines, string.format("  • |cFFFFFFFFPrecio / Coste:|r |cFFFFFFFF%s|r", meta.drop or "Monedas"))
+        elseif meta and meta.type == "Quest" or meta and meta.type == "quest" then
+            table.insert(lines, "  • |cFFFFFFFFTipo de Obtención:|r |cFFFFFF00Recompensa de Misión|r")
+            table.insert(lines, string.format("  • |cFFFFFFFFMisión:|r |cFFFFD100%s|r", meta.source or "Misión"))
+            table.insert(lines, string.format("  • |cFFFFFFFFZona de Entrega:|r |cFF00FFCC%s|r", meta.zone or "Azeroth"))
+        else
+            table.insert(lines, string.format("  • |cFFFFFFFFJefe / Fuente:|r |cFFFFD100%s|r", meta and meta.source or "Mundo"))
+            table.insert(lines, string.format("  • |cFFFFFFFFZona / Instancia:|r |cFF00FFCC%s|r", meta and meta.zone or "Azeroth"))
+            table.insert(lines, string.format("  • |cFFFFFFFFProbabilidad de Caída:|r |cFF00FF00%s|r", meta and meta.drop or "Variable"))
+            table.insert(lines, string.format("  • |cFFFFFFFFTipo de Encuentro:|r %s", meta and meta.type or "Drop de Jefe"))
+        end
+
+        table.insert(lines, "")
+        table.insert(lines, "|cFFFFCC00EVALUACIÓN DE MEJORA:|r")
+        local epLineAdded = false
         if ns.GetSlotUpgrade then
             local pClass = (UnitClassBase and UnitClassBase("player")) or select(2, UnitClass("player")) or "WARRIOR"
             local pctUpgrade, _, newScore, curScore = ns.GetSlotUpgrade(rFrame.slotKey, itemID, pClass, selectedBiSSpec)
             if pctUpgrade and pctUpgrade > 0 then
-                upgradeLine = string.format("\n|cFF00FF00▲ Mejora estimada: +%.1f%%|r (Puntaje EP: %.1f vs %.1f equipado)", pctUpgrade, newScore, curScore)
+                table.insert(lines, string.format("  • |cFF00FF00▲ Mejora Estimada: +%.1f%%|r", pctUpgrade))
+                table.insert(lines, string.format("  • |cFFFFFFFFPuntaje EP:|r |cFF00FFCC%.1f|r vs |cFF888888%.1f|r equipado", newScore, curScore))
+                epLineAdded = true
             elseif eq then
-                upgradeLine = string.format("\n|cFF00FF00✔ Objeto BiS equipado actualmente.|r (Puntaje EP: %.1f)", newScore or 0)
+                table.insert(lines, "  • |cFF00FF00✔ Objeto BiS actualmente equipado en tu personaje.|r")
+                table.insert(lines, string.format("  • |cFFFFFFFFPuntaje EP:|r |cFF00FFCC%.1f|r", newScore or 0))
+                epLineAdded = true
+            end
+        end
+        if not epLineAdded then
+            table.insert(lines, string.format("  • |cFFFFFFFFEstado en Personaje:|r %s", statusBadge))
+        end
+
+        table.insert(lines, "")
+        table.insert(lines, "|cFFFFCC00NOTAS TÁCTICAS & CONSEJOS:|r")
+        if rFrame.reason == "PROFESSION_LOCKED" then
+            table.insert(lines, "  • |cFFFF8800Requisito de Profesión:|r Este objeto requiere una profesión específica activa (ej. Ingeniería) para poder equiparse.")
+        end
+        if rFrame.itemMinLevel and rFrame.itemMinLevel > playerLevel then
+            table.insert(lines, string.format("  • |cFFFFAA00Nivel Requerido:|r Requiere Nivel %d (tu nivel actual es %d).", rFrame.itemMinLevel, playerLevel))
+        end
+        local validator = ns.Validator or (addon and addon.Validator) or (_G.AwakeningData and _G.AwakeningData.Validator)
+        if validator and validator.IsItemUniqueEquipped and validator:IsItemUniqueEquipped(itemID) then
+            table.insert(lines, "  • |cFF00CCFFÚnico-Equipado:|r No se pueden equipar dos copias idénticas al mismo tiempo.")
+        end
+        if _G.AtlasLoot then
+            table.insert(lines, "  • |cFF00FFCCAtlasLoot:|r Clic en el icono del objeto para inspeccionar en la tabla de botines.")
+        end
+        local isGQLoaded = (_G.GearQuest ~= nil) or (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GearQuestForever")) or (IsAddOnLoaded and IsAddOnLoaded("GearQuestForever"))
+        if isGQLoaded and playerLevel < 60 then
+            table.insert(lines, "  • |cFF00FFCCGearQuest Forever:|r Clic derecho en botón superior 'GearQuest' para mejoras tácticas de leveleo.")
+        elseif not isGQLoaded and playerLevel < 60 then
+            table.insert(lines, "  • |cFF888888GearQuest Forever (/gq):|r Recomendado para acompañar tu progresión durante el leveleo.")
+        end
+        table.insert(lines, "  • |cFFFFD100Navegación:|r Pulsa [ Marcar en Mapa / TomTom ] para activar la flecha 3D de navegación.")
+
+        if rightCol.instText then
+            rightCol.instText:SetText(table.concat(lines, "\n"))
+            if rightCol.instChild then
+                rightCol.instChild:SetHeight(math.max(10, rightCol.instText:GetStringHeight() + 30))
+            end
+        end
+        if rightCol.instScroll then rightCol.instScroll:SetVerticalScroll(0) end
+
+        if rightCol.btnTomTom then rightCol.btnTomTom:Show() end
+        if rightCol.btnHUD then rightCol.btnHUD:Show() end
+    end
+end
+
+function MainUI:CycleBiSSpec(isRightClick)
+    local _, playerClass = UnitClass("player")
+    playerClass = (playerClass or "WARRIOR"):upper()
+
+    if selectedBiSMode == "enchants" then
+        local specsList
+        if isRightClick then
+            specsList = ns.GetAllEnchantSpecs()
+        else
+            specsList = ns.GetEnchantSpecsForClass(playerClass)
+            local found = false
+            for _, k in ipairs(specsList) do
+                if k == selectedEnchantSpec then found = true; break end
+            end
+            if not found then
+                specsList = ns.GetAllEnchantSpecs()
             end
         end
 
-        local sourceDesc
-        if meta and meta.type == "Purchase" then
-            sourceDesc = string.format(
-                "Tipo: |cFFFFFF00Compra de Comerciante|r  ·  Precio: |cFFFFD100%s|r\nVendedor: |cFFFFFFFF%s|r  ·  Zona: |cFF00FFCC%s|r\nEstado: %s%s\n|cFF88DDFFConsejo (Nivel 1-14):|r El equipamiento de comerciantes de inicio es la forma más rápida y garantizada de optimizar tus estadísticas antes de las primeras mazmorras.",
-                meta.drop or "Monedas",
-                meta.source or "Vendedor local",
-                meta.zone or "Pueblo Inicial",
-                statusStr,
-                upgradeLine
-            )
-        else
-            sourceDesc = string.format(
-                "Jefe / Fuente: |cFFFFD100%s|r (%s)  ·  Zona: |cFFFFFFFF%s|r\nProbabilidad de caída: |cFFFFD100%s|r\nEstado: %s%s",
-                meta and meta.source or "Mundo Clásico",
-                meta and meta.type or "Kill",
-                meta and meta.zone or "Azeroth",
-                meta and meta.drop or "Variable",
-                statusStr,
-                upgradeLine
-            )
+        local currentIdx = 1
+        for idx, k in ipairs(specsList) do
+            if k == selectedEnchantSpec then
+                currentIdx = idx
+                break
+            end
         end
 
-        if rFrame.reason == "PROFESSION_LOCKED" then
-            sourceDesc = sourceDesc .. "\n|cFFFF8800[Requisito de Profesión: Este objeto requiere una profesión específica activa para poder equiparse (ej. Ingeniería). Se sugiere conseguirlo si dispones de la profesión o buscar piezas alternativas]|r"
-        elseif rFrame.itemMinLevel and rFrame.itemMinLevel > playerLevel then
-            sourceDesc = sourceDesc .. string.format("\n|cFFFFAA00[Nivel Requerido: Nivel %d (Tu nivel actual es %d). Podrás equipar este objeto BiS al alcanzar dicho nivel]|r", rFrame.itemMinLevel, playerLevel)
-        end
-
-        local validator = ns.Validator or (addon and addon.Validator) or (_G.AwakeningData and _G.AwakeningData.Validator)
-        if validator and validator.IsItemUniqueEquipped and validator:IsItemUniqueEquipped(itemID) then
-            sourceDesc = sourceDesc .. "\n|cFF00CCFF[Propiedad: Objeto Único-Equipado (No se pueden equipar dos piezas idénticas simultáneamente)]|r"
-        end
-
-        if _G.AtlasLoot then
-            sourceDesc = sourceDesc .. "\n|cFF00FFCC[AtlasLoot detectado: Clic en el icono o Alt+Clic en la lista para ver en AtlasLoot]|r"
-        end
-
-        mainFrame.detailText:SetText(sourceDesc)
+        local nextIdx = (currentIdx % #specsList) + 1
+        selectedEnchantSpec = specsList[nextIdx]
+        self:UpdateBiSView()
+        return
     end
+
+    local specsList = ns.GetClassSpecs and ns.GetClassSpecs(playerClass)
+    if not specsList or #specsList == 0 then return end
+
+    local currentKey = (selectedBiSSpec or ""):lower()
+    local currentIdx = 1
+    for idx, s in ipairs(specsList) do
+        local sKey = s.id:lower()
+        if sKey == currentKey or (sKey == "protection" and currentKey == "prot") or (sKey == "feral" and currentKey == "feral_cat") or (sKey == "bear" and currentKey == "feral_bear") or (sKey == "restoration" and currentKey == "resto") then
+            currentIdx = idx
+            break
+        end
+    end
+
+    local nextIdx
+    if isRightClick then
+        nextIdx = ((currentIdx - 2 + #specsList) % #specsList) + 1
+    else
+        nextIdx = (currentIdx % #specsList) + 1
+    end
+
+    local nextSpec = specsList[nextIdx]
+    selectedBiSSpec = nextSpec.id
+
+    -- Sincronizar elección con GearQuest Forever si está cargado
+    local GQ = _G.GearQuest
+    if GQ and GQ.Spec and GQ.Spec.SetSelectedSpec then
+        GQ.Spec:SetSelectedSpec(selectedBiSSpec, playerClass)
+        if GQ.Data and GQ.Data.InvalidateSpecCache then
+            GQ.Data:InvalidateSpecCache()
+        end
+    end
+
+    self:UpdateBiSView()
 end
 
 function MainUI:CycleBiSBracket()
@@ -1930,56 +2293,6 @@ function MainUI:CycleBiSBracket()
     selectedBiSBracket = classData.brackets[nextIdx].key
     self:UpdateBiSView()
     self:UpdateBottomButtons()
-end
-
-function MainUI:CycleBiSSpec(isRightClick)
-    if selectedBiSMode == "enchants" then
-        local _, playerClass = UnitClass("player")
-        playerClass = playerClass or "WARRIOR"
-
-        local specsList
-        if isRightClick then
-            specsList = ns.GetAllEnchantSpecs()
-        else
-            specsList = ns.GetEnchantSpecsForClass(playerClass)
-            local found = false
-            for _, k in ipairs(specsList) do
-                if k == selectedEnchantSpec then found = true; break end
-            end
-            if not found then
-                specsList = ns.GetAllEnchantSpecs()
-            end
-        end
-
-        local currentIdx = 1
-        for idx, k in ipairs(specsList) do
-            if k == selectedEnchantSpec then
-                currentIdx = idx
-                break
-            end
-        end
-
-        local nextIdx = (currentIdx % #specsList) + 1
-        selectedEnchantSpec = specsList[nextIdx]
-        self:UpdateBiSView()
-        return
-    end
-
-    local _, playerClass = UnitClass("player")
-    local classData = ns.Data.BiS and (ns.Data.BiS[playerClass] or ns.Data.BiS["WARRIOR"])
-    if not classData or not classData.specs then return end
-
-    local currentIdx = 1
-    for idx, s in ipairs(classData.specs) do
-        if s.key == selectedBiSSpec then
-            currentIdx = idx
-            break
-        end
-    end
-
-    local nextIdx = (currentIdx % #classData.specs) + 1
-    selectedBiSSpec = classData.specs[nextIdx].key
-    self:UpdateBiSView()
 end
 
 function MainUI:SetBiSWaypoint()
@@ -2048,6 +2361,7 @@ local secretsOrder = {
     "sleeping_bag",
     "expert_cooking",
     "library_books",
+    "swim_to_booty_bay",
     "ancient_rune",
     "sunken_chest",
     "tanaris_pirates",
@@ -2062,9 +2376,8 @@ local currentSecretsSubTab = "secrets"
 local currentSecretsFilter = "all"
 
 local SECRETS_SUBTABS = {
-    { id = "secrets",  text = "Secretos & Rutas", icon = "Interface\\Icons\\inv_misc_bag_07" },
-    { id = "dungeons", text = "Mazmorras 5-Jug",  icon = "Interface\\Icons\\inv_helmet_08" },
-    { id = "tips",     text = "Consejos Forever", icon = "Interface\\Icons\\spell_holy_magicalsentry" },
+    { id = "secrets", text = "Secretos & Rutas", icon = "Interface\\Icons\\inv_misc_bag_07" },
+    { id = "tips",    text = "Consejos Forever", icon = "Interface\\Icons\\spell_holy_magicalsentry" },
 }
 
 local SECRETS_FILTERS = {
@@ -2075,7 +2388,7 @@ local SECRETS_FILTERS = {
 }
 
 function MainUI:BuildSecretsList(parent)
-    -- 0. SubBar con 3 Pestañas Horizontales Estilo Píldora (GuideViewer & RaidPrep Style)
+    -- 0. SubBar con 2 Pestañas Horizontales Estilo Píldora (GuideViewer & RaidPrep Style)
     local subBar = CreateFrame("Frame", nil, parent)
     subBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
     subBar:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -2)
@@ -2083,11 +2396,11 @@ function MainUI:BuildSecretsList(parent)
     parent.subBar = subBar
 
     parent.subTabs = {}
-    local tabW = 162
+    local tabW = 360
     for idx, def in ipairs(SECRETS_SUBTABS) do
         local btn = CreateFrame("Button", nil, subBar, "BackdropTemplate")
         btn:SetSize(tabW, 20)
-        btn:SetPoint("LEFT", subBar, "LEFT", (idx - 1) * (tabW + 4), 0)
+        btn:SetPoint("LEFT", subBar, "LEFT", (idx - 1) * (tabW + 6), 0)
         btn:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
             edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -2140,7 +2453,7 @@ function MainUI:BuildSecretsList(parent)
     parent.filterBar = filterBar
 
     parent.filterChips = {}
-    local chipW = 120
+    local chipW = 176
     for idx, fDef in ipairs(SECRETS_FILTERS) do
         local chip = CreateFrame("Button", nil, filterBar, "BackdropTemplate")
         chip:SetSize(chipW, 18)
@@ -2187,7 +2500,7 @@ function MainUI:BuildSecretsList(parent)
     scroll:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -20, 24)
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(495, 10)
+    content:SetSize(730, 10)
     scroll:SetScrollChild(content)
     parent.content = content
     parent.scroll = scroll
@@ -2219,7 +2532,7 @@ function MainUI:BuildSecretsList(parent)
         local secret = (ns.GetSecret and ns.GetSecret(key)) or (ns.Data.Secrets and ns.Data.Secrets[key])
         if secret then
             local row = CreateFrame("Button", nil, content, "BackdropTemplate")
-            row:SetSize(495, 20)
+            row:SetSize(730, 20)
             row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
 
             -- Resaltado hover sutil estilo Olympus
@@ -2236,7 +2549,7 @@ function MainUI:BuildSecretsList(parent)
             sel:Hide()
             row.selection = sel
 
-            -- Columna 1: Título e Icono pequeño
+            -- Columna 1: Título e Icono pequeño (360px)
             local icon = row:CreateTexture(nil, "ARTWORK")
             icon:SetSize(16, 16)
             icon:SetPoint("LEFT", row, "LEFT", 2, 0)
@@ -2245,24 +2558,24 @@ function MainUI:BuildSecretsList(parent)
 
             local title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             title:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-            title:SetPoint("RIGHT", row, "LEFT", 260, 0)
+            title:SetPoint("RIGHT", row, "LEFT", 360, 0)
             title:SetJustifyH("LEFT")
             title:SetWordWrap(false)
             title:SetText(secret.title)
             row.title = title
 
-            -- Columna 2: Zona y Distancia
+            -- Columna 2: Zona y Distancia (230px)
             local zone = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            zone:SetPoint("LEFT", row, "LEFT", 262, 0)
-            zone:SetPoint("RIGHT", row, "LEFT", 430, 0)
+            zone:SetPoint("LEFT", row, "LEFT", 364, 0)
+            zone:SetPoint("RIGHT", row, "LEFT", 594, 0)
             zone:SetJustifyH("LEFT")
             zone:SetWordWrap(false)
             zone:SetText(secret.steps and secret.steps[1] and secret.steps[1].zoneName or "Varias")
             row.zone = zone
 
-            -- Columna 3: Hitos / Progreso
+            -- Columna 3: Hitos / Progreso (130px)
             local steps = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            steps:SetPoint("LEFT", row, "LEFT", 432, 0)
+            steps:SetPoint("LEFT", row, "LEFT", 598, 0)
             steps:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             steps:SetJustifyH("RIGHT")
             steps:SetWordWrap(false)
@@ -2594,13 +2907,11 @@ function MainUI:UpdateSecretsView()
     self:UpdateSecretsSubTabs()
     self:UpdateSecretsFilters()
 
-    -- Ajustar encabezados según la sub-pestaña seleccionada
-    if currentSecretsSubTab == "dungeons" then
-        SetColumnHeaders("Mazmorra / Rango", 260, 0, "Entrada / Región", 170, 261, "Ficha / Botín", 92, 432, "RIGHT")
-    elseif currentSecretsSubTab == "tips" then
-        SetColumnHeaders("Manual / Guía", 260, 0, "Enfoque / Región", 170, 261, "Capítulos", 92, 432, "RIGHT")
+    -- Ajustar encabezados según la sub-pestaña seleccionada (ancho exacto 730px)
+    if currentSecretsSubTab == "tips" then
+        SetColumnHeaders("Manual / Guía", 360, 0, "Enfoque / Región", 230, 362, "Capítulos", 130, 594, "RIGHT")
     else
-        SetColumnHeaders("Secreto / Misión", 260, 0, "Zona / Distancia", 170, 261, "Progreso", 92, 432, "RIGHT")
+        SetColumnHeaders("Secreto / Misión", 360, 0, "Zona / Distancia", 230, 362, "Progreso", 130, 594, "RIGHT")
     end
 
     -- Calcular progreso global y medidor semafórico
@@ -2632,9 +2943,10 @@ function MainUI:UpdateSecretsView()
             local isSecret = not isDungeon and not isTip
 
             local matchesSub = false
-            if currentSecretsSubTab == "secrets" and isSecret then matchesSub = true
-            elseif currentSecretsSubTab == "dungeons" and isDungeon then matchesSub = true
-            elseif currentSecretsSubTab == "tips" and isTip then matchesSub = true
+            if currentSecretsSubTab == "secrets" and isSecret then
+                matchesSub = true
+            elseif currentSecretsSubTab == "tips" and isTip then
+                matchesSub = true
             end
 
             if not matchesSub then
@@ -2662,6 +2974,11 @@ function MainUI:UpdateSecretsView()
                     elseif isOld and not showOld then
                         matchesFilter = false
                     end
+                end
+
+                local playerFaction = UnitFactionGroup("player") or "Alliance"
+                if secret.faction and secret.faction ~= "Ambas" and secret.faction ~= playerFaction then
+                    matchesFilter = false
                 end
 
                 if matchesFilter then
@@ -2980,7 +3297,13 @@ function MainUI:SelectSecret(key)
             table.insert(lines, stepDesc)
         end
 
-        if secret.category == "Guía" or secret.subCategory == "Mazmorra" then
+        if key == "swim_to_booty_bay" then
+            table.insert(lines, "|cFF00FFCC🏊 Consejos de Supervivencia y Ruta:|r")
+            table.insert(lines, "  · |cFFFFD100El 'Sweet Spot':|r Nada por el borde donde el agua clara pasa a oscura para no llamar agro terrestre ni fatiga.")
+            table.insert(lines, "  · |cFFFFD100Evitar Fatiga:|r Si aparece la barra de fatiga, gira hacia la orilla de inmediato hasta que desaparezca.")
+            table.insert(lines, "  · |cFFFFD100Llegada al Muelle:|r Al sur verás la colosal estatua goblin. Sube por la rampa de madera en los muelles y toma la ruta de vuelo.")
+            table.insert(lines, "|cFF888888Pulsa '|cFFFFD100Iniciar Ruta|r' para el compás HUD, o '|cFFFFD100Macro TomTom|r' para ver y marcar todos los /way.|r")
+        elseif secret.category == "Guía" or secret.subCategory == "Mazmorra" then
             table.insert(lines, "|cFF00FF00Interfaz Wowhead disponible:|r Ficha Técnica, Misiones, Estrategia de Jefes y Tabla de Botín.")
             table.insert(lines, "|cFFFFD100Pulsa '|cFF00FFCCVer Guía|r' abajo o haz doble clic para abrir el visor interactivo.|r")
         elseif not isDone then
@@ -3033,6 +3356,118 @@ function MainUI:CycleFarmingBracket()
     self:UpdateFarmingView()
 end
 
+function MainUI:ToggleProfessionTrainerWaypoint()
+    local profKey = selectedFarmingProfKey or "Leatherworking"
+    local profData = ns.Data.ProfessionGuides and ns.Data.ProfessionGuides[profKey]
+    local profName = (profData and profData.name) or profKey
+
+    -- 1. Si ya está marcado para la profesión activa, desmarcar
+    if activeTrainerWaypoint and activeTrainerWaypoint.profKey == profKey then
+        if activeTrainerWaypoint.tomtomUID and _G.TomTom and _G.TomTom.RemoveWaypoint then
+            pcall(_G.TomTom.RemoveWaypoint, _G.TomTom, activeTrainerWaypoint.tomtomUID)
+        end
+        if ns.GuideHUD and ns.GuideHUD.ClearTomTomWaypoint then
+            ns.GuideHUD:ClearTomTomWaypoint()
+        end
+        if ns.GuideHUD and ns.GuideHUD.Hide then
+            ns.GuideHUD:Hide()
+        end
+        ns.Print(string.format("Instructor de |cFFFFD100%s|r (|cFFFFFFFF%s|r) desmarcado.", profName, activeTrainerWaypoint.npc or "Entrenador"))
+        activeTrainerWaypoint = nil
+        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857, "Master")
+        self:UpdateBottomButtons()
+        return
+    end
+
+    -- 2. Si no está marcado, buscar el instructor recomendado para facción y tramo
+    local t, resolvedBracket = ns.GetProfessionTrainer and ns.GetProfessionTrainer(profKey, selectedFarmingBracket)
+    if not t then
+        ns.Print(string.format("|cFFFF3333No se encontró ningún instructor registrado de %s para este tramo.|r", profName))
+        return
+    end
+
+    -- Si había otro instructor marcado previamente, limpiarlo primero
+    if activeTrainerWaypoint and activeTrainerWaypoint.tomtomUID and _G.TomTom and _G.TomTom.RemoveWaypoint then
+        pcall(_G.TomTom.RemoveWaypoint, _G.TomTom, activeTrainerWaypoint.tomtomUID)
+    end
+
+    local tomtomUID = nil
+    local rankLabel = t.rank or resolvedBracket or "Instructor"
+    local title = string.format("Instructor: %s (%s)", t.name, rankLabel)
+
+    -- Sincronización con compás 3D TomTom
+    if _G.TomTom and _G.TomTom.AddWaypoint then
+        local ok, uid = pcall(_G.TomTom.AddWaypoint, _G.TomTom, t.uiMapID, t.x / 100, t.y / 100, {
+            title = string.format("[Awakening] %s", title),
+            desc = string.format("Instructor de %s en %s (%.1f, %.1f)", profName, t.zone, t.x, t.y),
+            from = "Awakening",
+            persistent = false,
+            minimap = true,
+            world = true,
+            crazy = true,
+            cleardistance = 15,
+        })
+        if ok and uid then
+            tomtomUID = uid
+            if _G.TomTom.SetCrazyArrow then
+                pcall(_G.TomTom.SetCrazyArrow, _G.TomTom, uid, 15, title)
+            end
+            if _G.TomTomCrazyArrow then
+                _G.TomTomCrazyArrow:Show()
+            end
+        end
+    end
+
+    -- Waypoint nativo de Blizzard en el mapa del mundo (Classic Forever)
+    if C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
+        pcall(function()
+            local point = UiMapPoint.CreateFromCoordinates(t.uiMapID, t.x / 100, t.y / 100)
+            C_Map.SetUserWaypoint(point)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+            end
+        end)
+    end
+
+    -- Iniciar tarjeta de navegación en el HUD flotante de Awakening
+    if ns.GuideHUD and ns.GuideHUD.StartRoute then
+        local guideData = {
+            title = string.format("Instructor: %s", t.name),
+            category = string.format("Instructor de %s (%s)", profName, rankLabel),
+            zoneName = t.zone,
+            uiMapID = t.uiMapID,
+            icon = (profData and profData.icon) or "Interface\\Icons\\inv_misc_map_01",
+            steps = {
+                {
+                    title = t.name,
+                    instruction = string.format("Habla con %s en %s (%.1f, %.1f) para aprender o subir %s (%s).", t.name, t.zone, t.x, t.y, profName, rankLabel),
+                    zoneName = t.zone,
+                    uiMapID = t.uiMapID,
+                    x = t.x,
+                    y = t.y,
+                    icon = (profData and profData.icon) or "Interface\\Icons\\inv_misc_map_01",
+                }
+            }
+        }
+        ns.GuideHUD:StartRoute(guideData, "trainer_prof_" .. profKey, 1)
+    end
+
+    activeTrainerWaypoint = {
+        profKey = profKey,
+        bracket = resolvedBracket,
+        npc = t.name,
+        zone = t.zone,
+        x = t.x,
+        y = t.y,
+        rank = rankLabel,
+        tomtomUID = tomtomUID,
+    }
+
+    PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856, "Master")
+    ns.Print(string.format("Instructor de |cFFFFD100%s|r (%s) marcado: |cFFFFFFFF%s|r en |cFF00FFCC%s|r (%.1f, %.1f)", profName, rankLabel, t.name, t.zone, t.x, t.y))
+    self:UpdateBottomButtons()
+end
+
 function MainUI:BuildFarmingList(parent)
     -- Barra superior de controles: Selector de Profesión y Selector de Tramo
     local controls = CreateFrame("Frame", nil, parent)
@@ -3043,7 +3478,7 @@ function MainUI:BuildFarmingList(parent)
 
     -- Botón de Profesión
     local profBtn = CreateFrame("Button", "AwakeningFarmingProfBtn", controls, "UIPanelButtonTemplate")
-    profBtn:SetSize(195, 22)
+    profBtn:SetSize(220, 22)
     profBtn:SetPoint("LEFT", controls, "LEFT", 2, 0)
     profBtn:SetText("Peletería")
     profBtn:SetScript("OnClick", function()
@@ -3074,7 +3509,7 @@ function MainUI:BuildFarmingList(parent)
 
     -- Botón de Tramo / Nivel
     local bracketBtn = CreateFrame("Button", "AwakeningFarmingBracketBtn", controls, "UIPanelButtonTemplate")
-    bracketBtn:SetSize(165, 22)
+    bracketBtn:SetSize(200, 22)
     bracketBtn:SetPoint("LEFT", profBtn, "RIGHT", 6, 0)
     bracketBtn:SetText("Auto (Según Habilidad)")
     bracketBtn:SetScript("OnClick", function()
@@ -3096,7 +3531,7 @@ function MainUI:BuildFarmingList(parent)
 
     -- Indicador de Modo
     local modeBadge = controls:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    modeBadge:SetPoint("RIGHT", controls, "RIGHT", -30, 0)
+    modeBadge:SetPoint("RIGHT", controls, "RIGHT", -10, 0)
     modeBadge:SetText("|cFF00FFCCAuto|r")
     parent.modeBadge = modeBadge
 
@@ -3107,7 +3542,7 @@ function MainUI:BuildFarmingList(parent)
     parent.scroll = scroll
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(440, 10)
+    content:SetSize(730, 10)
     scroll:SetScrollChild(content)
     parent.content = content
 
@@ -3246,7 +3681,7 @@ function MainUI:UpdateFarmingView()
         local row = farmingRowFrames[i]
         if not row then
             row = CreateFrame("Button", nil, content, "BackdropTemplate")
-            row:SetSize(440, 20)
+            row:SetSize(730, 20)
 
             local hl = row:CreateTexture(nil, "HIGHLIGHT")
             hl:SetAllPoints()
@@ -3273,20 +3708,20 @@ function MainUI:UpdateFarmingView()
 
             local title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             title:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-            title:SetPoint("RIGHT", row, "LEFT", 210, 0)
+            title:SetPoint("RIGHT", row, "LEFT", 360, 0)
             title:SetJustifyH("LEFT")
             title:SetWordWrap(false)
             row.title = title
 
             local prof = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            prof:SetPoint("LEFT", row, "LEFT", 212, 0)
-            prof:SetPoint("RIGHT", row, "LEFT", 372, 0)
+            prof:SetPoint("LEFT", row, "LEFT", 364, 0)
+            prof:SetPoint("RIGHT", row, "LEFT", 584, 0)
             prof:SetJustifyH("LEFT")
             prof:SetWordWrap(false)
             row.prof = prof
 
             local req = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            req:SetPoint("LEFT", row, "LEFT", 374, 0)
+            req:SetPoint("LEFT", row, "LEFT", 588, 0)
             req:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             req:SetJustifyH("RIGHT")
             req:SetWordWrap(false)
@@ -3298,7 +3733,7 @@ function MainUI:UpdateFarmingView()
         row.entry = entry
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", content, "TOPLEFT", 0, yOffset)
-        row:SetSize(490, 20)
+        row:SetSize(730, 20)
         row:Show()
 
         if entry.type == "header" then
@@ -3319,12 +3754,12 @@ function MainUI:UpdateFarmingView()
             row.icon:Show()
             row.title:ClearAllPoints()
             row.title:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
-            row.title:SetPoint("RIGHT", row, "LEFT", 210, 0)
+            row.title:SetPoint("RIGHT", row, "LEFT", 360, 0)
             row.prof:ClearAllPoints()
-            row.prof:SetPoint("LEFT", row, "LEFT", 212, 0)
-            row.prof:SetPoint("RIGHT", row, "LEFT", 372, 0)
+            row.prof:SetPoint("LEFT", row, "LEFT", 364, 0)
+            row.prof:SetPoint("RIGHT", row, "LEFT", 584, 0)
             row.req:ClearAllPoints()
-            row.req:SetPoint("LEFT", row, "LEFT", 374, 0)
+            row.req:SetPoint("LEFT", row, "LEFT", 588, 0)
             row.req:SetPoint("RIGHT", row, "RIGHT", -6, 0)
             row:EnableMouse(true)
             row:SetHeight(20)
@@ -3449,6 +3884,7 @@ function MainUI:UpdateFarmingView()
         local first = items[2]
         self:SelectFarmingItem(first.type, first.data, profData, bracketData, first.routeKey)
     end
+    self:UpdateBottomButtons()
 end
 
 function MainUI:SelectFarmingItem(itemType, data, profData, bracketData, routeKey)
@@ -3819,18 +4255,18 @@ end
 -- CONSTRUCCIÓN DE LA VISTA COMPLETA DE VIAJES (Estilo Casino)
 -- =========================================================================
 function MainUI:BuildTravelView(parent)
-    -- Contenedor izquierdo: Selectores, toggles y accesos rápidos (230px)
+    -- Contenedor izquierdo: Selectores, toggles y accesos rápidos (352px)
     local leftCol = CreateFrame("Frame", nil, parent)
     leftCol:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
     leftCol:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 2, 2)
-    leftCol:SetWidth(230)
+    leftCol:SetWidth(352)
     parent.leftCol = leftCol
 
-    -- Contenedor derecho: Previsualización interactiva de etapas/itinerario (288px)
+    -- Contenedor derecho: Previsualización interactiva de etapas/itinerario (386px)
     local rightCol = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     rightCol:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, -2)
     rightCol:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -2, 2)
-    rightCol:SetWidth(288)
+    rightCol:SetWidth(386)
     rightCol:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -3842,7 +4278,7 @@ function MainUI:BuildTravelView(parent)
 
     -- 1. Botón de Origen (Icono nativo de mapa en lugar de emoji)
     local btnFrom = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
-    btnFrom:SetSize(198, 26)
+    btnFrom:SetSize(316, 26)
     btnFrom:SetPoint("TOPLEFT", leftCol, "TOPLEFT", 0, -4)
     btnFrom:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -3863,8 +4299,8 @@ function MainUI:BuildTravelView(parent)
 
     -- Botón de intercambio de origen/destino [<->]
     local btnSwap = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
-    btnSwap:SetSize(26, 26)
-    btnSwap:SetPoint("LEFT", btnFrom, "RIGHT", 4, 0)
+    btnSwap:SetSize(28, 26)
+    btnSwap:SetPoint("LEFT", btnFrom, "RIGHT", 6, 0)
     btnSwap:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -3894,7 +4330,7 @@ function MainUI:BuildTravelView(parent)
 
     -- 2. Botón de Destino (Icono nativo de estandarte en lugar de emoji)
     local btnTo = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
-    btnTo:SetSize(228, 26)
+    btnTo:SetSize(350, 26)
     btnTo:SetPoint("TOPLEFT", btnFrom, "BOTTOMLEFT", 0, -6)
     btnTo:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -3934,7 +4370,7 @@ function MainUI:BuildTravelView(parent)
 
     local function makeModeBtn(text, x)
         local b = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
-        b:SetSize(112, 22)
+        b:SetSize(172, 22)
         b:SetPoint("TOPLEFT", leftCol, "TOPLEFT", x, -92)
         b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
         b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -3944,7 +4380,7 @@ function MainUI:BuildTravelView(parent)
     end
 
     local fastBtn = makeModeBtn("|TInterface\\Icons\\ability_rogue_sprint:13:13:0:0|t Rápido", 0)
-    local safeBtn = makeModeBtn("|TInterface\\Icons\\inv_shield_04:13:13:0:0|t Seguro", 116)
+    local safeBtn = makeModeBtn("|TInterface\\Icons\\inv_shield_04:13:13:0:0|t Seguro", 178)
 
     local function paintTravelMode()
         local onBg   = { 0.15, 0.35, 0.2, 1 }
@@ -3977,7 +4413,7 @@ function MainUI:BuildTravelView(parent)
     end)
     paintTravelMode()
 
-    -- 4. Rejilla de Destinos Rápidos (Grid de Capitales ancho: 74px por botón)
+    -- 4. Rejilla de Destinos Rápidos (Grid de Capitales ancho: 172px por botón)
     local hubsTitle = leftCol:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     hubsTitle:SetPoint("TOPLEFT", leftCol, "TOPLEFT", 2, -122)
     hubsTitle:SetText("|cFFFFD100Destinos Rápidos:|r")
@@ -3991,8 +4427,8 @@ function MainUI:BuildTravelView(parent)
         local col = (i - 1) % 2
 
         local hBtn = CreateFrame("Button", nil, leftCol, "BackdropTemplate")
-        hBtn:SetSize(112, 26)
-        hBtn:SetPoint("TOPLEFT", leftCol, "TOPLEFT", col * 116, -138 - (row * 30))
+        hBtn:SetSize(172, 26)
+        hBtn:SetPoint("TOPLEFT", leftCol, "TOPLEFT", col * 178, -138 - (row * 30))
         hBtn:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
             edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -4061,7 +4497,7 @@ function MainUI:BuildTravelView(parent)
     legScroll:SetPoint("BOTTOMRIGHT", rightCol, "BOTTOMRIGHT", -22, 6)
 
     local legContent = CreateFrame("Frame", nil, legScroll)
-    legContent:SetSize(260, 10)
+    legContent:SetSize(350, 10)
     legScroll:SetScrollChild(legContent)
     rightCol.legScroll = legScroll
     rightCol.legContent = legContent
@@ -4070,7 +4506,7 @@ function MainUI:BuildTravelView(parent)
     -- Mensaje de estado cuando no hay ruta calculada
     local emptyMsg = rightCol:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     emptyMsg:SetPoint("CENTER", rightCol, "CENTER", 0, -10)
-    emptyMsg:SetWidth(250)
+    emptyMsg:SetWidth(340)
     emptyMsg:SetJustifyH("CENTER")
     emptyMsg:SetText("Elige origen y destino para visualizar los vuelos, barcos, tranvía y tiempos de viaje.")
     rightCol.emptyMsg = emptyMsg
@@ -4309,7 +4745,131 @@ function MainUI:UpdateTravelView()
     self:UpdateBottomButtons()
 end
 
+-- =========================================================================
+-- DIÁLOGO MODAL PARA COPIAR MACRO TOMTOM Y MARCAR HITOS
+-- =========================================================================
+local tomtomMacroDialog = nil
 
+function MainUI:SetAllTomTomWaypoints(steps)
+    if not _G.TomTom or not _G.TomTom.AddWaypoint then
+        ns.Print("|cFFFF3333TomTom no está instalado o activo.|r")
+        return false
+    end
+    local count = 0
+    for i, s in ipairs(steps) do
+        if s.uiMapID and s.x and s.y then
+            local title = string.format("[Awakening] %s", s.title or ("Hito " .. i))
+            local desc = s.instruction or ""
+            pcall(_G.TomTom.AddWaypoint, _G.TomTom, s.uiMapID, s.x / 100, s.y / 100, {
+                title = title,
+                desc = desc,
+                from = "Awakening",
+                persistent = false,
+                minimap = true,
+                world = true,
+                crazy = (i == 1),
+                cleardistance = 15,
+            })
+            count = count + 1
+        end
+    end
+    ns.Print(string.format("|cFF00FF00¡%d marcas de TomTom añadidas con éxito a lo largo de la costa!|r", count))
+    return true
+end
+
+function MainUI:ShowTomTomMacroDialog(secretKey)
+    local secret = (ns.GetSecret and ns.GetSecret(secretKey)) or (ns.Data.Secrets and ns.Data.Secrets[secretKey])
+    if not secret then return end
+
+    if not tomtomMacroDialog then
+        local dlg = CreateFrame("Frame", "AwakeningTomTomDialog", UIParent, "BackdropTemplate")
+        dlg:SetSize(480, 320)
+        dlg:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        dlg:SetFrameStrata("DIALOG")
+        dlg:SetBackdrop({
+            bgFile = "Interface\\FrameGeneral\\UI-Background-Marble",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true,
+            tileSize = 16,
+            edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        dlg:SetBackdropColor(0.04, 0.05, 0.07, 0.98)
+        dlg:SetBackdropBorderColor(0.7, 0.55, 0.2, 1)
+        dlg:EnableMouse(true)
+        dlg:SetMovable(true)
+        dlg:RegisterForDrag("LeftButton")
+        dlg:SetScript("OnDragStart", dlg.StartMoving)
+        dlg:SetScript("OnDragStop", dlg.StopMovingOrSizing)
+
+        local title = dlg:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", dlg, "TOPLEFT", 14, -12)
+        title:SetText("|cFFFFD100Coordenadas & Macro TomTom · Nadar a Bahía del Botín|r")
+        dlg.title = title
+
+        local btnClose = CreateFrame("Button", nil, dlg, "UIPanelCloseButton")
+        btnClose:SetPoint("TOPRIGHT", dlg, "TOPRIGHT", -4, -4)
+        btnClose:SetScript("OnClick", function() dlg:Hide() end)
+
+        local subtitle = dlg:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+        subtitle:SetPoint("RIGHT", dlg, "RIGHT", -14, 0)
+        subtitle:SetJustifyH("LEFT")
+        subtitle:SetText("Copia y pega estos comandos en tu chat del juego o en un macro para mapear toda la costa:")
+        dlg.subtitle = subtitle
+
+        local editScroll = CreateFrame("ScrollFrame", "AwakeningTomTomScroll", dlg, "UIPanelScrollFrameTemplate")
+        editScroll:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -8)
+        editScroll:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -30, 44)
+
+        local editBox = CreateFrame("EditBox", nil, editScroll)
+        editBox:SetMultiLine(true)
+        editBox:SetFontObject("GameFontHighlightSmall")
+        editBox:SetWidth(430)
+        editBox:SetAutoFocus(false)
+        editBox:SetScript("OnEscapePressed", function() dlg:Hide() end)
+        editScroll:SetScrollChild(editBox)
+        dlg.editBox = editBox
+
+        -- Botón para fijar directamente en TomTom si está instalado
+        local btnTomTom = CreateFrame("Button", nil, dlg, "UIPanelButtonTemplate")
+        btnTomTom:SetSize(180, 24)
+        btnTomTom:SetPoint("BOTTOMLEFT", dlg, "BOTTOMLEFT", 14, 10)
+        btnTomTom:SetText("Marcar Todo en TomTom")
+        btnTomTom:SetScript("OnClick", function()
+            if dlg.currentSteps then
+                MainUI:SetAllTomTomWaypoints(dlg.currentSteps)
+            end
+        end)
+        dlg.btnTomTom = btnTomTom
+
+        -- Botón Cerrar
+        local btnCloseDlg = CreateFrame("Button", nil, dlg, "UIPanelButtonTemplate")
+        btnCloseDlg:SetSize(100, 24)
+        btnCloseDlg:SetPoint("BOTTOMRIGHT", dlg, "BOTTOMRIGHT", -14, 10)
+        btnCloseDlg:SetText("Cerrar")
+        btnCloseDlg:SetScript("OnClick", function() dlg:Hide() end)
+
+        tomtomMacroDialog = dlg
+    end
+
+    local macroLines = {
+        "# Macro 1: Páramos de Poniente a Vega de Tuercespina",
+        "/way Westfall 30.0 85.0 Entrar al agua y nadar al sur",
+        " ",
+        "# Macro 2: Costa Oeste de Vega de Tuercespina (STV)",
+        "/way Stranglethorn Vale 19.0 22.0 Mantenerse en aguas profundas",
+        "/way Stranglethorn Vale 16.0 45.0 Pasar de largo Grom'gol",
+        "/way Stranglethorn Vale 21.0 73.0 Evitar elementales de la orilla",
+        "/way Stranglethorn Vale 27.0 74.0 Rampa del muelle de Bahía del Botín",
+    }
+    local macroText = table.concat(macroLines, "\n")
+    tomtomMacroDialog.editBox:SetText(macroText)
+    tomtomMacroDialog.currentSteps = secret.steps
+    tomtomMacroDialog:Show()
+    tomtomMacroDialog.editBox:SetFocus()
+    tomtomMacroDialog.editBox:HighlightText()
+end
 
 -- =========================================================================
 -- ACCIONES DE LOS 3 BOTONES INFERIORES
@@ -4396,6 +4956,10 @@ function MainUI:OnActionButton2()
             self:CycleBiSBracket()
         end
     elseif currentKey == "secrets" then
+        if selectedSecretKey == "swim_to_booty_bay" then
+            self:ShowTomTomMacroDialog("swim_to_booty_bay")
+            return
+        end
         local secret = (ns.GetSecret and ns.GetSecret(selectedSecretKey)) or (ns.Data.Secrets and ns.Data.Secrets[selectedSecretKey])
         if selectedSecretKey == "beginners_guide" or selectedSecretKey == "bank_alt_guide" or (secret and secret.category == "Consejos") then
             if ns.GuideViewer then
@@ -4432,8 +4996,7 @@ function MainUI:OnActionButton2()
             self:RefreshCurrentView()
         end
     elseif currentKey == "farming" then
-        self:CycleFarmingBracket()
-        self:UpdateBottomButtons()
+        self:ToggleProfessionTrainerWaypoint()
     elseif currentKey == "prep" then
         if ns.RaidPrep then
             if ns.RaidPrep.currentSubMode == "camping" then
@@ -4469,6 +5032,11 @@ function MainUI:UpdateBottomButtons()
     if not bottomButtons[1] then return end
     local currentKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key
 
+    if currentKey ~= "farming" and bottomButtons[2] then
+        bottomButtons[2]:SetScript("OnEnter", nil)
+        bottomButtons[2]:SetScript("OnLeave", nil)
+    end
+
     if currentKey == "bis" then
         if selectedBiSMode == "enchants" then
             bottomButtons[1]:SetText("Ver Fuente")
@@ -4486,6 +5054,9 @@ function MainUI:UpdateBottomButtons()
         elseif s and (s.category == "Guía" or s.subCategory == "Mazmorra") then
             bottomButtons[1]:SetText("Iniciar Ruta")
             bottomButtons[2]:SetText("Ver Guía")
+        elseif selectedSecretKey == "swim_to_booty_bay" then
+            bottomButtons[1]:SetText("Iniciar Ruta")
+            bottomButtons[2]:SetText("Macro TomTom")
         else
             bottomButtons[1]:SetText("Iniciar Ruta")
             bottomButtons[2]:SetText("Planificar Viaje")
@@ -4493,7 +5064,44 @@ function MainUI:UpdateBottomButtons()
         bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "farming" then
         bottomButtons[1]:SetText("Iniciar Ruta")
-        bottomButtons[2]:SetText("Cambiar Tramo")
+
+        local profKey = selectedFarmingProfKey or "Leatherworking"
+        local isMarked = (activeTrainerWaypoint ~= nil and activeTrainerWaypoint.profKey == profKey)
+        local t, resBracket = ns.GetProfessionTrainer and ns.GetProfessionTrainer(profKey, selectedFarmingBracket)
+
+        if isMarked then
+            bottomButtons[2]:SetText("|cFFFF3333Desmarcar Entr.|r")
+        else
+            local label = (t and t.rank and ("Entrenador (" .. t.rank:gsub("%s*%(.*%)", "") .. ")")) or "Marcar Entrenador"
+            bottomButtons[2]:SetText(label)
+        end
+
+        bottomButtons[2]:SetScript("OnEnter", function(selfBtn)
+            GameTooltip:SetOwner(selfBtn, "ANCHOR_TOP")
+            local profData = ns.Data.ProfessionGuides and ns.Data.ProfessionGuides[profKey]
+            local profName = (profData and profData.name) or profKey
+            if isMarked and activeTrainerWaypoint then
+                GameTooltip:AddLine(string.format("Instructor de %s (Activo)", profName), 1, 0.82, 0)
+                GameTooltip:AddLine(string.format("· Instructor: |cFFFFFFFF%s|r", activeTrainerWaypoint.npc), 1, 1, 1)
+                GameTooltip:AddLine(string.format("· Ubicación: |cFF00FFCC%s|r (%.1f, %.1f)", activeTrainerWaypoint.zone, activeTrainerWaypoint.x, activeTrainerWaypoint.y), 1, 1, 1)
+                GameTooltip:AddLine(string.format("· Rango: |cFF00FF00%s|r", activeTrainerWaypoint.rank or activeTrainerWaypoint.bracket or "Instructor"), 1, 1, 1)
+                GameTooltip:AddLine(" ", 1, 1, 1)
+                GameTooltip:AddLine("Haz clic para |cFFFF3333desmarcar|r el waypoint y ocultar el compás TomTom / HUD.", 1, 0.3, 0.3)
+            elseif t then
+                GameTooltip:AddLine(string.format("Instructor de %s (%s)", profName, t.rank or resBracket or ""), 1, 0.82, 0)
+                GameTooltip:AddLine(string.format("· Instructor: |cFFFFFFFF%s|r", t.name), 1, 1, 1)
+                GameTooltip:AddLine(string.format("· Ubicación: |cFF00FFCC%s|r (%.1f, %.1f)", t.zone, t.x, t.y), 1, 1, 1)
+                GameTooltip:AddLine(string.format("· Rango: |cFF00FF00%s|r (Tramo %s)", t.rank or "Instructor", resBracket or "1-75"), 1, 1, 1)
+                GameTooltip:AddLine(" ", 1, 1, 1)
+                GameTooltip:AddLine("Haz clic para |cFF00FF00marcar|r el waypoint en el compás 3D TomTom y el HUD de Awakening.", 0.2, 1, 0.4)
+            else
+                GameTooltip:AddLine(string.format("Instructor de %s", profName), 1, 0.82, 0)
+                GameTooltip:AddLine("No se encontró ningún instructor para este tramo.", 0.8, 0.8, 0.8)
+            end
+            GameTooltip:Show()
+        end)
+        bottomButtons[2]:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
         bottomButtons[3]:SetText("Habilidades")
     elseif currentKey == "prep" then
         if ns.RaidPrep and ns.RaidPrep.currentSubMode == "camping" then
@@ -4550,22 +5158,60 @@ function MainUI:SelectTab(indexOrKey)
     end
 
     if currentKey == "bis" then
-        if selectedBiSMode == "enchants" then
-            SetColumnHeaders("Ranura", 80, 0, "Encantamiento Óptimo", 295, 81, "Fuente", 142, 378, "RIGHT")
-        else
-            SetColumnHeaders("Ranura", 80, 0, "Objeto BiS", 295, 81, "Estado", 142, 378, "RIGHT")
+        -- Ocultar cabeceras y caja inferior tradicionales para expandir BiS en 2 columnas pantalla completa
+        if colHeaderButtons[1] then colHeaderButtons[1]:Hide() end
+        if colHeaderButtons[2] then colHeaderButtons[2]:Hide() end
+        if colHeaderButtons[3] then colHeaderButtons[3]:Hide() end
+        if mainFrame.colHeaderFrame then mainFrame.colHeaderFrame:Hide() end
+        if mainFrame.detailBox then mainFrame.detailBox:Hide() end
+        if bottomButtons[1] then bottomButtons[1]:Hide() end
+        if bottomButtons[2] then bottomButtons[2]:Hide() end
+        if bottomButtons[3] then bottomButtons[3]:Hide() end
+
+        if mainFrame.listBox then
+            mainFrame.listBox:ClearAllPoints()
+            mainFrame.listBox:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 6, -64)
+            mainFrame.listBox:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -6, 8)
         end
+
+        local bisView = viewsByKey["bis"] or views[tabIndexByKey["bis"] or 2]
+        if bisView and mainFrame.listBox then
+            bisView:ClearAllPoints()
+            bisView:SetPoint("TOPLEFT", mainFrame.listBox, "TOPLEFT", 4, -4)
+            bisView:SetPoint("BOTTOMRIGHT", mainFrame.listBox, "BOTTOMRIGHT", -4, 4)
+        end
+
         self:UpdateBiSView()
     else
+        -- Restaurar geometría clásica con caja de detalles inferior y botones de navegación
+        if mainFrame.colHeaderFrame then mainFrame.colHeaderFrame:Show() end
+        if mainFrame.detailBox then mainFrame.detailBox:Show() end
+        if bottomButtons[1] then bottomButtons[1]:Show() end
+        if bottomButtons[2] then bottomButtons[2]:Show() end
+        if bottomButtons[3] then bottomButtons[3]:Show() end
+
+        if mainFrame.listBox then
+            mainFrame.listBox:ClearAllPoints()
+            mainFrame.listBox:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 6, -64)
+            mainFrame.listBox:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -6, 34 + DETAIL_H + 4)
+        end
+
+        local curView = views[index]
+        if curView and mainFrame.listBox then
+            curView:ClearAllPoints()
+            curView:SetPoint("TOPLEFT", mainFrame.listBox, "TOPLEFT", 2, -22)
+            curView:SetPoint("BOTTOMRIGHT", mainFrame.listBox, "BOTTOMRIGHT", -2, 2)
+        end
+
         self:UpdateSubtitle()
     end
 
     if currentKey == "secrets" then
         mainFrame.heroTitle:SetText("|cFFFFD100Guías & Secretos|r")
-        SetColumnHeaders("Secreto / Misión", 260, 0, "Zona / Distancia", 170, 261, "Progreso", 92, 432, "RIGHT")
+        SetColumnHeaders("Secreto / Misión", 360, 0, "Zona / Distancia", 230, 362, "Progreso", 130, 594, "RIGHT")
         self:UpdateSecretsView()
     elseif currentKey == "farming" then
-        SetColumnHeaders("Material / Paso / Ruta", 210, 0, "Origen / Receta", 160, 211, "Inventario / Requisito", 152, 372, "RIGHT")
+        SetColumnHeaders("Receta / Material / Paso", 360, 0, "Tipo / Zona / Origen", 220, 362, "Inventario / Requisito", 140, 584, "RIGHT")
         self:ShowDetailRewards(nil)
         self:UpdateFarmingView()
     elseif currentKey == "prep" then
@@ -4585,7 +5231,7 @@ function MainUI:SelectTab(indexOrKey)
         self:UpdateTravelView()
     elseif currentKey == "guild" then
         mainFrame.heroTitle:SetText("|cFF00FFCCHermandad Awakening|r")
-        SetColumnHeaders("Miembro", 255, 0, "Rango", 135, 256, "Nivel", 132, 392, "RIGHT")
+        SetColumnHeaders("Miembro", 220, 0, "Nv.", 50, 222, "Zona", 260, 274, "Rango", 180, 536, "RIGHT")
         self:ShowDetailRewards(nil)
         if mainFrame.detailTitle then
             mainFrame.detailTitle:SetText("|cFF00FFCCHermandad Awakening|r · Protocolo Comms Activo")
@@ -4596,6 +5242,7 @@ function MainUI:SelectTab(indexOrKey)
         end
     end
 
+    self:UpdateClassArt()
     self:UpdateBottomButtons()
 end
 
@@ -4639,11 +5286,25 @@ loadFrame:RegisterEvent("QUEST_LOG_UPDATE")
 loadFrame:RegisterEvent("QUEST_ACCEPTED")
 loadFrame:RegisterEvent("QUEST_TURNED_IN")
 loadFrame:RegisterEvent("PLAYER_LEVEL_UP")
+loadFrame:RegisterEvent("CHARACTER_POINTS_CHANGED")
+loadFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
 loadFrame:SetScript("OnEvent", function(self, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
         MainUI:Init()
     elseif event == "GET_ITEM_INFO_RECEIVED" then
         MainUI:OnPreloadItemReceived(arg1)
+    elseif event == "CHARACTER_POINTS_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
+        local _, pClass = UnitClass("player")
+        local newSpec = ns.DetectPlayerActiveSpec and ns.DetectPlayerActiveSpec(pClass)
+        if newSpec then
+            selectedBiSSpec = newSpec
+            if mainFrame and mainFrame:IsShown() then
+                local currentKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key
+                if currentKey == "bis" then
+                    MainUI:UpdateBiSView()
+                end
+            end
+        end
     elseif event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" then
         local currentKey = TABS_CONFIG[currentTab] and TABS_CONFIG[currentTab].key
         if mainFrame and mainFrame:IsShown() then

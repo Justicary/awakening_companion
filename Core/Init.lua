@@ -503,6 +503,17 @@ SlashCmdList["AWAKENING"] = function(msg)
         if ns.MainUI then
             ns.MainUI:OpenTab("bis")
         end
+    elseif cmd == "gq" or cmd == "gearquest" then
+        if _G.GearQuest and _G.GearQuest.Log and _G.GearQuest.Log.Toggle then
+            _G.GearQuest.Log:Toggle()
+        elseif SlashCmdList["GEARQUEST"] then
+            SlashCmdList["GEARQUEST"]("log")
+        else
+            if ns.MainUI then
+                ns.MainUI:OpenTab("bis")
+            end
+            ns.Print("|cFFFFD100GearQuest Forever|r no está cargado. Te sugerimos instalarlo para obtener recomendaciones de equipo nivel a nivel (1-59).")
+        end
     elseif cmd == "secrets" or cmd == "secretos" then
         if ns.MainUI then
             ns.MainUI:OpenTab("secrets")

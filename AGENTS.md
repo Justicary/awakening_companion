@@ -8,7 +8,7 @@
 
 * **Producto:** **Awakening: Companion**, addon y suite de herramientas integradas para **World of Warcraft Forever** dirigido a nuevos y/o veteranos jugadores de la comunidad hispanohablante.
 * **Versión de Interfaz (`## Interface`):** `16001` (WoW Classic Forever Beta).
-* **Referencia Visual y Arquitectónica:** Código y recursos del addon local en `D:\World of Warcraft\_classic_beta_\Interface\AddOns\Olympus` (utilizar como estándar para imitar estilos de widgets, jerarquía visual, pestañas y manejo seguro de eventos).
+* **Referencia Visual y Arquitectónica:** Código y recursos del addon local en `D:\World of Warcraft\_classic_beta_\Interface\AddOns\GearQuestForever` (utilizar como estándar para imitar estilos de widgets, jerarquía visual, pestañas y manejo seguro de eventos).
 
 ### Modelo Operativo
 
@@ -36,7 +36,7 @@
   ```lua
   tinsert(UISpecialFrames, "AwakeningMainFrame")
   ```
-* **Estructura Estética Olympus:**
+* **Estructura Estética:**
   1. **Cabecera superior oscura:** Emblema circular o *crest* en la esquina superior izquierda (`spell_holy_magicalsentry`), título dorado prominente (`GameFontNormalHuge`), métricas en color oro (`GameFontHighlightLarge`) y estado del servidor/versión (`GameFontDisableSmall`).
   2. **Contenedor de datos tipo inset:** Fondo oscuro amarmolado (`Interface\FrameGeneral\UI-Background-Marble`) con bordes tooltip (`Interface\Tooltips\UI-Tooltip-Border`) y tinte de alto contraste (`0.02, 0.02, 0.04, 0.95`).
   3. **Barra inferior de 3 botones:** Botones de dimensiones consistentes (ej. `Iniciar Ruta / Marcar`, `Actualizar`, `Habilidades`).
@@ -164,7 +164,7 @@ AwakeningCompanion/
 | [Data/BiSData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/BiSData.lua) | Catálogo Best-in-Slot (BiS) adaptado de BiSTracker y LibEquippable para las 9 clases clásicas, con 5 tiers según nivel de jugador (15-25, 26-40, 41-52, Pre-Raid 60, Raid P1), jefes, zonas y coordenadas para TomTom. Incluye base de datos completa de Encantamientos Óptimos y Refuerzos de Peletería (Leatherworking Armor Kits) escalados por tramo de nivel y rol. | `ns.GetDefaultBiSBracket()`, `ns.GetPlayerItemStatus()`, `ns.GetBiSItemMetadata()`, `ns.GetBiSProgress()`, `ns.GetEnchantsForSpec()`, `ns.GetEnchantMetadata()` |
 | [Data/SecretsData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/SecretsData.lua) | Definición estructurada de secretos (Cozy Sleeping Bag, runas arcanas, cofres ocultos) con zonas, coordenadas y descripción. | `ns.Data.Secrets`, `AwakeningData.Guides` |
 | [Data/FarmingData.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Data/FarmingData.lua) | Catálogo de rutas de recolección (Minería, Herboristería, Desuello, Pesca) etiquetadas por profesión y rangos de habilidad recomendada. | `ns.Data.Farming` |
-| [Modules/MainUI.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/MainUI.lua) | Ventana principal estilo Olympus con 5 pestañas laterales (BiS, Secretos, Farmeo, Preparación, Hermandad), métrica hero superior, detalle inferior y botones de acción. | `MainUI:Init()`, `MainUI:OpenTab()`, `MainUI:UpdateBiSView()`, `MainUI:UpdateFarmingView()`, `MainUI:Toggle()`, `MainUI:Show()` |
+| [Modules/MainUI.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/MainUI.lua) | Ventana principal estilo Olympus con 6 pestañas laterales (BiS, Secretos, Farmeo, Preparación, Viaje, Hermandad), fondos artísticos inmersivos por clase estilo GearQuest Forever HD con recorte de aspecto y viñeta oscura, sinergia nativa con el motor `_G.GearQuest` (`/gq`), métrica hero superior y detalle inferior. | `MainUI:Init()`, `MainUI:OpenTab()`, `MainUI:UpdateBiSView()`, `MainUI:UpdateClassArt()`, `MainUI:HandleGearQuestClick()`, `MainUI:Toggle()`, `MainUI:Show()` |
 | [Modules/GuideHUD.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/GuideHUD.lua) | Tarjeta flotante de seguimiento de ruta con delegación a TomTom (Crazy Arrow 3D, pines de mapa y minimapa) y compás nativo de respaldo. | `GuideHUD:StartRoute()`, `GuideHUD:SyncTomTomWaypoint()`, `GuideHUD:ClearTomTomWaypoint()`, `GuideHUD:NextStep()`, `GuideHUD:Toggle()` |
 | [Modules/RaidPrep.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/RaidPrep.lua) | Módulo 'Preparación' dinámico según clase, nivel (tramos 1-19, 20-34, 35-49, 50-59, 60) y especialización. Sugiere consumibles, comida y buffs para leveleo, mazmorras y bandas. Encabezado hero dinámico (`Preparación <Clase> (Nv. <Nivel>) · X/Y (Z%)`). | `RaidPrep:Build()`, `RaidPrep:Update()`, `RaidPrep:CycleSpec()`, `RaidPrep:SelectConsumable()`, `RaidPrep:BroadcastStatus()` |
 | [Modules/GuildRoster.lua](file:///home/justicary/proyectos/antigravity/AwakeningCompanion/Modules/GuildRoster.lua) | Renderizado del censo de miembros en línea de `<Awakening>` con soporte para colores de clase (`RAID_CLASS_COLORS`) y scroll. | `GuildRoster:Build()`, `GuildRoster:Update()` |
@@ -181,6 +181,7 @@ El addon registra `/awakening` y `/awk` para interactuar rápidamente desde el c
 * `/awk secretos` o `/awk secrets` — Abre directamente la pestaña de guías de secretos.
 * `/awk farmeo` o `/awk farming` — Abre directamente la pestaña de rutas de farmeo.
 * `/awk prep` o `/awk preparacion` — Abre directamente la pestaña de auditoría de consumibles y buffs ('Preparación').
+* `/awk gq` o `/awk gearquest` — Abre el buscador / registro de mejoras de leveleo de GearQuest Forever (/gq).
 * `/awk hermandad` o `/awk guild` — Abre directamente el censo de hermandad.
 * `/awk hud` — Alterna la visibilidad del HUD flotante de navegación.
 * `/awk arrow` — Centra horizontalmente la Crazy Arrow 3D de TomTom en la parte superior.

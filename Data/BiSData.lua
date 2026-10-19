@@ -6190,8 +6190,513 @@ function ns.GetEnchantMetadata(enchantID)
     }
 end
 
+-- =========================================================================
+-- DETECCIÓN DINÁMICA DE ESPECIALIZACIÓN POR TALENTOS (WoW Classic Forever)
+-- =========================================================================
+local SPEC_BY_TAB = {
+    WARRIOR = { "arms", "fury", "prot" },
+    PALADIN = { "holy", "prot", "ret" },
+    HUNTER  = { "beast", "mark", "surv" },
+    ROGUE   = { "assas", "combat", "sub" },
+    PRIEST  = { "disc", "holy", "shadow" },
+    SHAMAN  = { "ele", "enh", "resto" },
+    MAGE    = { "arcane", "fire", "frost" },
+    WARLOCK = { "affli", "demo", "destro" },
+    DRUID   = { "balance", "feral", "resto" },
+}
+
+local SPEC_DEFAULT_LEVELING = {
+    WARRIOR = "fury",
+    PALADIN = "ret",
+    HUNTER  = "beast",
+    ROGUE   = "combat",
+    PRIEST  = "shadow",
+    SHAMAN  = "enh",
+    MAGE    = "frost",
+    WARLOCK = "affli",
+    DRUID   = "feral",
+}
+
+local SPEC_DISPLAY_INFO = {
+    WARRIOR = {
+        arms       = { name = "Armas", icon = "Interface\\Icons\\Ability_Warrior_SavageBlow", enchantSpec = "fury_warrior" },
+        fury       = { name = "Furia", icon = "Interface\\Icons\\Ability_Warrior_InnerRage", enchantSpec = "fury_warrior" },
+        prot       = { name = "Protección", icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", enchantSpec = "protection_warrior" },
+        protection = { name = "Protección", icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", enchantSpec = "protection_warrior" },
+    },
+    PALADIN = {
+        holy        = { name = "Sagrado", icon = "Interface\\Icons\\Spell_Holy_HolyBolt", enchantSpec = "paladin_holy" },
+        prot        = { name = "Protección", icon = "Interface\\Icons\\Spell_Holy_DevotionAura", enchantSpec = "protection_paladin" },
+        protection  = { name = "Protección", icon = "Interface\\Icons\\Spell_Holy_DevotionAura", enchantSpec = "protection_paladin" },
+        ret         = { name = "Reprensión", icon = "Interface\\Icons\\Spell_Holy_AuraOfLight", enchantSpec = "protection_paladin" },
+        retribution = { name = "Reprensión", icon = "Interface\\Icons\\Spell_Holy_AuraOfLight", enchantSpec = "protection_paladin" },
+    },
+    HUNTER = {
+        beast         = { name = "Bestias", icon = "Interface\\Icons\\Ability_Hunter_BeastTaming", enchantSpec = "hunter_mark" },
+        beast_mastery = { name = "Bestias", icon = "Interface\\Icons\\Ability_Hunter_BeastTaming", enchantSpec = "hunter_mark" },
+        mark          = { name = "Puntería", icon = "Interface\\Icons\\Ability_Hunter_AimedShot", enchantSpec = "hunter_mark" },
+        marksmanship  = { name = "Puntería", icon = "Interface\\Icons\\Ability_Hunter_AimedShot", enchantSpec = "hunter_mark" },
+        surv          = { name = "Supervivencia", icon = "Interface\\Icons\\Ability_Hunter_SwiftStrike", enchantSpec = "hunter_mark" },
+        survival      = { name = "Supervivencia", icon = "Interface\\Icons\\Ability_Hunter_SwiftStrike", enchantSpec = "hunter_mark" },
+    },
+    ROGUE = {
+        assas         = { name = "Asesinato", icon = "Interface\\Icons\\Ability_Rogue_Eviscerate", enchantSpec = "rogue_combat" },
+        assassination = { name = "Asesinato", icon = "Interface\\Icons\\Ability_Rogue_Eviscerate", enchantSpec = "rogue_combat" },
+        combat        = { name = "Combate", icon = "Interface\\Icons\\Ability_BackStab", enchantSpec = "rogue_combat" },
+        sub           = { name = "Sutileza", icon = "Interface\\Icons\\Ability_Stealth", enchantSpec = "rogue_combat" },
+        subtlety      = { name = "Sutileza", icon = "Interface\\Icons\\Ability_Stealth", enchantSpec = "rogue_combat" },
+    },
+    PRIEST = {
+        disc       = { name = "Disciplina", icon = "Interface\\Icons\\Spell_Holy_PowerWordShield", enchantSpec = "priest_holy" },
+        discipline = { name = "Disciplina", icon = "Interface\\Icons\\Spell_Holy_PowerWordShield", enchantSpec = "priest_holy" },
+        holy       = { name = "Sagrado", icon = "Interface\\Icons\\Spell_Holy_Heal", enchantSpec = "priest_holy" },
+        shadow     = { name = "Sombras", icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain", enchantSpec = "priest_shadow" },
+    },
+    SHAMAN = {
+        ele         = { name = "Elemental", icon = "Interface\\Icons\\Spell_Nature_Lightning", enchantSpec = "shaman_resto" },
+        elemental   = { name = "Elemental", icon = "Interface\\Icons\\Spell_Nature_Lightning", enchantSpec = "shaman_resto" },
+        enh         = { name = "Mejora", icon = "Interface\\Icons\\Spell_Nature_LightningShield", enchantSpec = "shaman_resto" },
+        enhancement = { name = "Mejora", icon = "Interface\\Icons\\Spell_Nature_LightningShield", enchantSpec = "shaman_resto" },
+        resto       = { name = "Restauración", icon = "Interface\\Icons\\Spell_Nature_MagicImmunity", enchantSpec = "shaman_resto" },
+        restoration = { name = "Restauración", icon = "Interface\\Icons\\Spell_Nature_MagicImmunity", enchantSpec = "shaman_resto" },
+    },
+    MAGE = {
+        arcane = { name = "Arcano", icon = "Interface\\Icons\\Spell_Holy_MagicalSentry", enchantSpec = "mage_frost" },
+        fire   = { name = "Fuego", icon = "Interface\\Icons\\Spell_Fire_FireBolt02", enchantSpec = "mage_frost" },
+        frost  = { name = "Escarcha", icon = "Interface\\Icons\\Spell_Frost_FrostBolt02", enchantSpec = "mage_frost" },
+    },
+    WARLOCK = {
+        affli       = { name = "Aflicción", icon = "Interface\\Icons\\Spell_Shadow_DeathCoil", enchantSpec = "warlock_ruin" },
+        affliction  = { name = "Aflicción", icon = "Interface\\Icons\\Spell_Shadow_DeathCoil", enchantSpec = "warlock_ruin" },
+        demo        = { name = "Demonología", icon = "Interface\\Icons\\Spell_Shadow_Metamorphosis", enchantSpec = "warlock_ruin" },
+        demonology  = { name = "Demonología", icon = "Interface\\Icons\\Spell_Shadow_Metamorphosis", enchantSpec = "warlock_ruin" },
+        destro      = { name = "Destrucción", icon = "Interface\\Icons\\Spell_Shadow_RainOfFire", enchantSpec = "warlock_ruin" },
+        destruction = { name = "Destrucción", icon = "Interface\\Icons\\Spell_Shadow_RainOfFire", enchantSpec = "warlock_ruin" },
+    },
+    DRUID = {
+        balance     = { name = "Equilibrio", icon = "Interface\\Icons\\Spell_Nature_StarFall", enchantSpec = "feral_cat" },
+        feral       = { name = "Feral", icon = "Interface\\Icons\\Ability_Druid_CatForm", enchantSpec = "feral_cat" },
+        bear        = { name = "Feral Tanque", icon = "Interface\\Icons\\Ability_Druid_Maul", enchantSpec = "feral_cat" },
+        resto       = { name = "Restauración", icon = "Interface\\Icons\\Spell_Nature_HealingTouch", enchantSpec = "druid_resto" },
+        restoration = { name = "Restauración", icon = "Interface\\Icons\\Spell_Nature_HealingTouch", enchantSpec = "druid_resto" },
+    },
+}
+
+local SPEC_CANONICAL_MAP = {
+    prot = "protection",
+    protection = "protection",
+    ret = "retribution",
+    retribution = "retribution",
+    beast = "beast_mastery",
+    beast_mastery = "beast_mastery",
+    mark = "marksmanship",
+    marksmanship = "marksmanship",
+    surv = "survival",
+    survival = "survival",
+    assas = "assassination",
+    assassination = "assassination",
+    sub = "subtlety",
+    subtlety = "subtlety",
+    disc = "discipline",
+    discipline = "discipline",
+    ele = "elemental",
+    elemental = "elemental",
+    enh = "enhancement",
+    enhancement = "enhancement",
+    resto = "restoration",
+    restoration = "restoration",
+    affli = "affliction",
+    affliction = "affliction",
+    demo = "demonology",
+    demonology = "demonology",
+    destro = "destruction",
+    destruction = "destruction",
+    -- Druid
+    feral = "feral",
+    feral_cat = "feral",
+    feral_bear = "bear",
+    bear = "bear",
+    balance = "balance",
+}
+
+--- Obtiene la lista ordenada de especializaciones disponibles para una clase
+function ns.GetClassSpecs(pClass)
+    pClass = (pClass or select(2, UnitClass("player")) or "WARRIOR"):upper()
+    local GQ = _G.GearQuest
+    if GQ and GQ.Spec and GQ.Spec.GetOptions then
+        local gqOpts = GQ.Spec:GetOptions(pClass)
+        if gqOpts and #gqOpts > 0 then
+            local list = {}
+            for _, opt in ipairs(gqOpts) do
+                local sInfo = ns.GetSpecDisplayInfo(pClass, opt.id)
+                list[#list + 1] = {
+                    id   = opt.id,
+                    key  = opt.id,
+                    name = (sInfo and sInfo.name) or opt.label or opt.id,
+                    icon = (sInfo and sInfo.icon) or opt.icon or "Interface\\Icons\\inv_misc_questionmark",
+                }
+            end
+            return list
+        end
+    end
+
+    -- Respaldo nativo si GearQuest no estuviera cargado
+    local classSpecs = SPEC_DISPLAY_INFO[pClass]
+    local list = {}
+    if classSpecs then
+        local seen = {}
+        for key, info in pairs(classSpecs) do
+            local canonical = SPEC_CANONICAL_MAP[key] or key
+            if not seen[canonical] then
+                seen[canonical] = true
+                list[#list + 1] = {
+                    id   = canonical,
+                    key  = canonical,
+                    name = info.name or canonical,
+                    icon = info.icon or "Interface\\Icons\\inv_misc_questionmark",
+                }
+            end
+        end
+    end
+    return list
+end
+
+--- Detecta dinámicamente la especialización activa del jugador sincronizando con GearQuest Forever o analizando talentos
+function ns.DetectPlayerActiveSpec(pClass)
+    pClass = (pClass or select(2, UnitClass("player")) or "WARRIOR"):upper()
+
+    -- 1. Sinergia Primaria: Si GearQuest Forever está cargado, leer directamente su especialización activa
+    if _G.GearQuest and _G.GearQuest.Spec and _G.GearQuest.Spec.GetDisplaySpec then
+        local gqSpec = _G.GearQuest.Spec:GetDisplaySpec(pClass)
+        if gqSpec and gqSpec ~= "" then
+            return gqSpec:lower()
+        end
+    end
+
+    local tabs = SPEC_BY_TAB[pClass]
+    if not tabs then return "fury" end
+
+    -- 2. Detección por puntos gastados en árbol de talentos nativo de WoW Classic
+    local bestTab, maxPts = nil, 0
+    if GetTalentTabInfo then
+        local talentGroup = (GetActiveTalentGroup and GetActiveTalentGroup()) or nil
+        for tab = 1, 3 do
+            local pts = 0
+            local ok, a, b, c, d, e, f, g, h = pcall(GetTalentTabInfo, tab, talentGroup)
+            if not ok then
+                ok, a, b, c, d, e, f, g, h = pcall(GetTalentTabInfo, tab)
+            end
+            if ok then
+                local candidates = { c, e, f, d, g, b, h, a }
+                for _, val in ipairs(candidates) do
+                    local n = tonumber(val)
+                    if n and n >= 1 and n <= 61 then
+                        pts = n
+                        break
+                    end
+                end
+            end
+            if pts == 0 and GetNumTalents and GetTalentInfo then
+                local numT = GetNumTalents(tab, talentGroup) or GetNumTalents(tab) or 0
+                for i = 1, numT do
+                    local _, _, _, _, rank = GetTalentInfo(tab, i, talentGroup)
+                    if not rank then _, _, _, _, rank = GetTalentInfo(tab, i) end
+                    if rank and rank > 0 then pts = pts + rank end
+                end
+            end
+            if pts > maxPts then
+                maxPts = pts
+                bestTab = tab
+            end
+        end
+    end
+
+    if bestTab and maxPts > 0 and tabs[bestTab] then
+        local rawSpec = tabs[bestTab]
+        return SPEC_CANONICAL_MAP[rawSpec] or rawSpec
+    end
+
+    local defSpec = SPEC_DEFAULT_LEVELING[pClass] or tabs[1] or "fury"
+    return SPEC_CANONICAL_MAP[defSpec] or defSpec
+end
+
+--- Mapeo entre las ranuras de Awakening Companion y los identificadores de GearQuest Forever
+local AWK_TO_GQ_SLOTS = {
+    Head          = "Head",
+    Neck          = "Neck",
+    Shoulder      = "Shoulder",
+    Back          = "Back",
+    Chest         = "Chest",
+    Wrists        = "Wrist",
+    Hands         = "Hands",
+    Waist         = "Waist",
+    Legs          = "Legs",
+    Feet          = "Feet",
+    Finger1       = "Finger",
+    Finger2       = "Finger",
+    Trinket1      = "Trinket",
+    Trinket2      = "Trinket",
+    MainHand      = "MainHand",
+    SecondaryHand = "SecondaryHand",
+    Relic         = "Ranged",
+}
+
+--- Sincroniza las preferencias de GearQuest Forever para activar el modo 'Dungeon Enjoyer'
+--- y bloquear fuentes no permitidas (profesiones, vendedores, reputación, honor y mundo exterior)
+function ns.SyncGearQuestDungeonEnjoyer()
+    local GQ = _G.GearQuest
+    if not (GQ and GQ.Log) then return end
+
+    if type(_G.GearQuestForeverDB) ~= "table" then
+        _G.GearQuestForeverDB = {}
+    end
+    local db = _G.GearQuestForeverDB
+    db.ui = db.ui or {}
+
+    -- Activar modo Dungeon Enjoyer en la máquina de GearQuest
+    db.ui.playDungeonEnjoyer = true
+    db.ui.playNoDungeons = nil
+
+    -- Bloquear subcategorías exteriores según los estándares de diseño BiS
+    db.ui.hiddenSources = db.ui.hiddenSources or {}
+    db.ui.hiddenSources.profession = true
+    db.ui.hiddenSources.vendor = true
+    db.ui.hiddenSources.world_drop = true
+    db.ui.hiddenSources.rare_npc = true
+    db.ui.hiddenSources.special = true
+    db.ui.hiddenSources.unsourced = true
+
+    -- Bloquear subcategorías de vendedores (reputaciones y campos de batalla/honor)
+    db.ui.hiddenVendors = db.ui.hiddenVendors or {}
+    db.ui.hiddenVendors.reputation = true
+    db.ui.hiddenVendors.honor = true
+
+    if GQ.Log.InvalidateSourceFilterCache then
+        GQ.Log:InvalidateSourceFilterCache()
+    end
+    if GQ.Log.UpdatePlayStyleButton then
+        GQ.Log:UpdatePlayStyleButton()
+    end
+    if GQ.Log.UpdateSourceFilterButton then
+        GQ.Log:UpdateSourceFilterButton()
+    end
+end
+
+--- Evalúa rigurosamente si una entrada de equipo de GearQuest se obtiene exclusivamente en Mazmorras/Raids
+local function IsDungeonOnlyEntry(entry, playerLevel)
+    if not entry or not entry.itemId or entry.itemId <= 0 then
+        return false
+    end
+
+    local GQ = _G.GearQuest
+    local fact = (GQ and GQ.Data and GQ.Data.GetItemFact and GQ.Data:GetItemFact(entry.itemId)) or nil
+
+    -- 0. Descartar si el objeto requiere un nivel mayor al nivel actual del jugador
+    local reqLevel = (fact and fact.reqLevel) or entry.reqLevel or entry.minLevel
+    if not reqLevel and GetItemInfo then
+        local _, _, _, _, minL = GetItemInfo(entry.itemId)
+        reqLevel = minL
+    end
+    if reqLevel and type(reqLevel) == "number" and reqLevel > 1 and playerLevel and type(playerLevel) == "number" and playerLevel > 0 then
+        if reqLevel > playerLevel then
+            return false
+        end
+    end
+    if entry.minLevel and type(entry.minLevel) == "number" and playerLevel and type(playerLevel) == "number" and playerLevel > 0 then
+        if entry.minLevel > playerLevel then
+            return false
+        end
+    end
+
+    -- Enriquecer campos si vienen vacíos en la entrada ligera
+    local srcType = entry.sourceType or (fact and fact.sourceType) or ""
+    if GQ and GQ.NormalizeSourceType then
+        srcType = GQ:NormalizeSourceType(srcType)
+    end
+    srcType = srcType:lower()
+
+    local zone = entry.zone or (fact and fact.zone) or ""
+    local instructions = entry.instructions or (fact and fact.instructions) or ""
+    local questName = entry.questName or (fact and fact.questName) or ""
+    local profession = entry.profession or (fact and fact.profession) or ""
+    local reputation = entry.reputation or (fact and fact.reputation) or nil
+    local faction = entry.faction or (fact and fact.faction) or nil
+
+    -- 1. Descartar explícitamente crafteo de profesiones (Peletería, Herrería, Sastrería, etc.)
+    if srcType == "profession" or srcType == "craft" or profession ~= "" then
+        return false
+    end
+
+    -- 2. Descartar compras de comerciantes, intendentes de reputación o vendedores de honor JcJ
+    if srcType == "vendor" or reputation ~= nil or faction ~= nil then
+        return false
+    end
+    if GQ and GQ.Log and GQ.Log.VendorFlags then
+        local rep, honor = GQ.Log:VendorFlags(entry)
+        if rep or honor then
+            return false
+        end
+    end
+
+    -- 3. Descartar botín general de mundo exterior (world drops) o criaturas raras no de mazmorra
+    if srcType == "world_drop" or srcType == "rare_npc" or srcType == "special" or srcType == "unsourced" then
+        return false
+    end
+
+    -- 4. Validar mediante la lógica de GearQuest Log:EntryRequiresInstance
+    if GQ and GQ.Log and GQ.Log.EntryRequiresInstance then
+        -- Asegurar que entry tenga los metadatos poblados para el evaluador
+        if not entry.sourceType then entry.sourceType = srcType end
+        if not entry.zone then entry.zone = zone end
+        if not entry.instructions then entry.instructions = instructions end
+        if not entry.questName then entry.questName = questName end
+
+        if not GQ.Log:EntryRequiresInstance(entry) then
+            return false
+        end
+    end
+
+    -- 5. Si es boss_drop, asegurar que el jefe pertenezca a una estancia reconocida
+    if srcType == "boss_drop" and GQ and GQ.Log and GQ.Log.BossDungeonKey then
+        local dKey = GQ.Log:BossDungeonKey(entry)
+        if not dKey or dKey == "Other" then
+            return false
+        end
+    end
+
+    -- 6. Si es quest_reward o seasonal_quest, verificar que sea una misión realizada en mazmorra
+    if srcType == "quest_reward" or srcType == "seasonal_quest" then
+        if GQ and GQ.Log and GQ.Log.TextNamesInstance then
+            if not (GQ.Log:TextNamesInstance(instructions) or GQ.Log:TextNamesInstance(questName)) then
+                return false
+            end
+        end
+    end
+
+    -- Solo permitir si es jefe, trash, contenedor o misión de estancia
+    if srcType ~= "boss_drop" and srcType ~= "raid_trash" and srcType ~= "quest_reward" and srcType ~= "object_drop" then
+        return false
+    end
+
+    return true
+end
+
+--- Consulta a la maquinaria y base de datos de GearQuest Forever para obtener el equipo recomendado nivel a nivel
+--- Filtrado rigurosamente en modo Dungeon Enjoyer (solo mazmorras y bandas)
+function ns.GetGearQuestRecommendedItem(slotKey, playerLevel, playerClass, specKey)
+    local GQ = _G.GearQuest
+    if not (GQ and GQ.Log) then
+        return nil
+    end
+
+    playerLevel = tonumber(playerLevel) or (UnitLevel and UnitLevel("player")) or 1
+    playerClass = (playerClass or select(2, UnitClass("player")) or "WARRIOR"):upper()
+
+    local gqSlot = AWK_TO_GQ_SLOTS[slotKey] or slotKey
+    local rawList = nil
+
+    if GQ.Log.GetSlotRankList then
+        rawList = GQ.Log:GetSlotRankList(gqSlot)
+    end
+
+    if (not rawList or #rawList == 0) and GQ.Log.RankOneEntry then
+        local r1 = GQ.Log:RankOneEntry(gqSlot)
+        if r1 then
+            rawList = { r1 }
+        end
+    end
+
+    if not rawList or #rawList == 0 then
+        return nil
+    end
+
+    -- Filtrar rigurosamente solo piezas obtenibles dentro de Mazmorras y que no superen el nivel del jugador
+    local dungeonList = {}
+    local seenItems = {}
+    for _, candidate in ipairs(rawList) do
+        if candidate and candidate.itemId and candidate.itemId > 0 and not seenItems[candidate.itemId] then
+            if IsDungeonOnlyEntry(candidate, playerLevel) then
+                seenItems[candidate.itemId] = true
+                dungeonList[#dungeonList + 1] = candidate
+            end
+        end
+    end
+
+    if #dungeonList == 0 then
+        return nil
+    end
+
+    -- Seleccionar índice (Anillo 2 y Abalorio 2 usan el segundo mejor objeto de mazmorra si está disponible)
+    local targetIndex = 1
+    if slotKey == "Finger2" or slotKey == "Trinket2" then
+        if #dungeonList >= 2 then
+            targetIndex = 2
+        else
+            -- Si no existe un segundo objeto distinto para el nivel actual, no duplicar ni recomendar objetos de nivel alto
+            return nil
+        end
+    end
+
+    local entry = dungeonList[targetIndex]
+    if not entry or not entry.itemId or entry.itemId <= 0 then
+        return nil
+    end
+
+    -- Consultar metadatos enriquecidos de GearQuest
+    local fact = GQ.Data and GQ.Data.GetItemFact and GQ.Data:GetItemFact(entry.itemId)
+
+    local meta = {
+        name         = (fact and fact.name) or entry.name or ("Objeto #" .. entry.itemId),
+        source       = (fact and (fact.npc or fact.zone or fact.instructions)) or entry.source or "Mazmorra",
+        zone         = (fact and fact.zone) or entry.zone or "Mazmorra",
+        drop         = (fact and fact.sourceType) or "Jefe de Mazmorra",
+        instructions = (fact and fact.instructions) or entry.instructions or "",
+        type         = (fact and fact.sourceType) or "Botín de Mazmorra",
+        minLevel     = (fact and fact.reqLevel) or entry.reqLevel or 1,
+        quality      = (fact and fact.quality) or entry.quality or 1,
+        isGearQuest  = true,
+        isDungeon    = true,
+    }
+
+    return {
+        itemID  = entry.itemId,
+        score   = entry.pipelineScore or 0,
+        meta    = meta,
+        fact    = fact,
+        entry   = entry,
+        reason  = "OK",
+    }
+end
+
+--- Obtiene la información visual y metadatos de una especialización (nombre legible, icono y spec de encantamientos)
+function ns.GetSpecDisplayInfo(pClass, specKey)
+    pClass = (pClass or select(2, UnitClass("player")) or "WARRIOR"):upper()
+    local classSpecs = SPEC_DISPLAY_INFO[pClass]
+    if classSpecs and specKey then
+        local norm = specKey:lower()
+        if classSpecs[norm] then
+            return classSpecs[norm]
+        end
+        local alias = SPEC_CANONICAL_MAP[norm]
+        if alias and classSpecs[alias] then
+            return classSpecs[alias]
+        end
+    end
+
+    local defaultKey = SPEC_DEFAULT_LEVELING[pClass] or "fury"
+    if classSpecs and classSpecs[defaultKey] then
+        return classSpecs[defaultKey]
+    end
+    return { name = specKey or "Especialización", icon = "Interface\\Icons\\inv_misc_questionmark", enchantSpec = "fury_warrior" }
+end
+
 function ns.GetClassDefaultEnchantSpec(playerClass)
     playerClass = (playerClass or select(2, UnitClass("player")) or "WARRIOR"):upper()
+    local activeSpec = ns.DetectPlayerActiveSpec(playerClass)
+    local sInfo = ns.GetSpecDisplayInfo(playerClass, activeSpec)
+    if sInfo and sInfo.enchantSpec then
+        return sInfo.enchantSpec
+    end
     local map = {
         ["WARRIOR"] = "fury_warrior",
         ["ROGUE"]   = "rogue_combat",
@@ -6343,6 +6848,24 @@ function ns.GetBiSItemMetadata(itemID)
                 type = entry.source.SourceType or "Kill",
                 zone = entry.source.Zone or "Azeroth",
                 drop = (entry.source.DropChance and entry.source.DropChance ~= "0") and (entry.source.DropChance .. "%") or "Común"
+            }
+        end
+    end
+
+    -- Sinergia de Datos con GearQuest Forever (Base de datos exhaustiva 1-60)
+    if _G.GearQuest and _G.GearQuest.Data and _G.GearQuest.Data.GetItemFact then
+        local fact = _G.GearQuest.Data:GetItemFact(itemID)
+        if fact then
+            return {
+                name         = fact.name or ("Objeto #" .. itemID),
+                source       = fact.npc or fact.instructions or fact.zone or "GearQuest",
+                type         = fact.sourceType or "Recompensa / Botín",
+                zone         = fact.zone or "Azeroth",
+                drop         = "Recomendado",
+                instructions = fact.instructions or "",
+                minLevel     = fact.reqLevel or 1,
+                quality      = fact.quality or 1,
+                isGearQuest  = true,
             }
         end
     end

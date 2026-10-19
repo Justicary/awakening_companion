@@ -454,6 +454,17 @@ function GuideHUD:OnStepArrived(fromTomTom)
                 GuideHUD:NextStep()
             end
         end
+
+        -- Si es la ruta de natación a Bahía del Botín y llegó al destino final (Paso 5)
+        local guideId = (currentGuide and (currentGuide.id or currentGuide.secretKey)) or (ns.db and ns.db.activeRoute)
+        if guideId == "swim_to_booty_bay" and currentStepIndex >= #currentGuide.steps then
+            AwakeningDB = AwakeningDB or {}
+            AwakeningDB.secretProgress = AwakeningDB.secretProgress or {}
+            AwakeningDB.secretProgress["swim_to_booty_bay"] = 5
+            if ns.MainUI and ns.MainUI.UpdateSecretsView and ns.MainUI:IsShown() then
+                ns.MainUI:UpdateSecretsView()
+            end
+        end
     end
 end
 
